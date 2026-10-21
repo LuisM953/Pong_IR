@@ -94,7 +94,7 @@ cd Pong_IR
 ```bash
 iverilog -o sim src/vga_sync.v tb/vga_sync_tb.v
 vvp sim
-gtkwave vga.vcd
+gtkwave vga_sync_tb.vcd
 ```
 
 En GTKWave, agregar las señales `clk`, `reset`, `tick`, `h_count`, `v_count`, `hsync`, `vsync` y `video_on`, y comprobar los tiempos de la tabla de arriba. Los archivos `.vvp` y `.vcd` se generan al simular y no se suben al repositorio.
@@ -112,5 +112,3 @@ En GTKWave, agregar las señales `clk`, `reset`, `tick`, `h_count`, `v_count`, `
 ## Uso de IA
 
 El uso de herramientas de IA está documentado en [AI_USAGE.md](AI_USAGE.md).
-
-# Pong_IR
