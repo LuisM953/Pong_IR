@@ -112,3 +112,5 @@ En GTKWave, agregar las señales `clk`, `reset`, `tick`, `h_count`, `v_count`, `
 ## Uso de IA
 
 El uso de herramientas de IA está documentado en [AI_USAGE.md](AI_USAGE.md).
+
+# Pong_IR
