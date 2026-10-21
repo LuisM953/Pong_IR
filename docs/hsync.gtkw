@@ -1,0 +1,46 @@
+[*]
+[*] GTKWave Analyzer v3.3.126 (w)1999-2026 BSI
+[*] Wed Oct 21 23:22:54 2026
+[*]
+[dumpfile] "/home/luizm/ELDI/Pong_IR/vga_sync_tb.vcd"
+[dumpfile_mtime] "Wed Oct 21 22:51:33 2026"
+[dumpfile_size] 126891
+[savefile] "/home/luizm/ELDI/Pong_IR/docs/hsync.gtkw"
+[timestart] 25740000
+[size] 1920 1033
+[pos] -1 -1
+*-18.970087 30175000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] vga_sync_tb.
+[sst_width] 43
+[signals_width] 126
+[sst_expanded] 0
+[sst_vpaned_height] 308
+@28
+vga_sync_tb.dut.clk
+vga_sync_tb.dut.reset
+vga_sync_tb.dut.tick
+@24
+vga_sync_tb.dut.h_count[9:0]
+@29
+vga_sync_tb.dut.hsync
+@28
+vga_sync_tb.dut.video_on
+@c00024
+vga_sync_tb.dut.v_count[9:0]
+@28
+(0)vga_sync_tb.dut.v_count[9:0]
+(1)vga_sync_tb.dut.v_count[9:0]
+(2)vga_sync_tb.dut.v_count[9:0]
+(3)vga_sync_tb.dut.v_count[9:0]
+(4)vga_sync_tb.dut.v_count[9:0]
+(5)vga_sync_tb.dut.v_count[9:0]
+(6)vga_sync_tb.dut.v_count[9:0]
+(7)vga_sync_tb.dut.v_count[9:0]
+(8)vga_sync_tb.dut.v_count[9:0]
+(9)vga_sync_tb.dut.v_count[9:0]
+@1401200
+-group_end
+@28
+vga_sync_tb.dut.vsync
+[pattern_trace] 1
+[pattern_trace] 0
