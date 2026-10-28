@@ -17,7 +17,7 @@ Juego de Pong para dos jugadores que se muestra en un monitor VGA de 640x480 a 6
 - [ ] Decodificación de las teclas de dos controles IR.
 - [ ] Un par de teclas asignado a cada jugador (subir y bajar).
 - [ ] El juego se muestra en una pantalla VGA.
-- [ ] Testbench por cada módulo, con casos límite.
+- [ ] Testbench por cada módulo, con casos límite (hecho para `vga_sync`, `pixel_gen` y `paddle_move`).
 
 ## Hardware
 
@@ -53,9 +53,13 @@ Pong_IR/
 ## Arquitectura
 
 ```
-Receptor IR -> Decodificador NEC -> Mapeo de teclas --+
-                                                      +-> Lógica del Pong (FSM) -> Generador de píxeles -> vga_sync -> Monitor
-Reloj 100 MHz -> clock enable (tick cada 4 ciclos) ---+
+Receptor IR -> Decodificador NEC -> Mapeo de teclas -> up/down de cada jugador
+                                                              |
+                                                              v
+                                          paddle_move (x2) -> posición y de cada paleta
+                                                              |
+                                                              v
+Reloj 100 MHz -> vga_sync -> x, y, video_on, frame_tick ---> pixel_gen -> rgb -> Monitor
 ```
 
 Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia de píxel de ~25 MHz que necesita el VGA se usa un pulso de habilitación (`tick`) cada 4 ciclos, en vez de generar un reloj dividido. Así hay un único dominio de reloj y se evitan los problemas de temporización y de cruce entre relojes.
@@ -64,9 +68,10 @@ Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia d
 
 | Módulo | Archivo | Estado |
 |---|---|---|
-| Sincronía VGA | `src/vga_sync.v` | Hecho, con testbench autoverificable de HSYNC |
-| Generador de píxeles (paletas, pelota, línea central) | `src/pixel_gen.v` | Hecho; testbench en progreso |
-| Lógica del juego y FSM | por definir | Pendiente |
+| Sincronía VGA | `src/vga_sync.v` | Hecho, con testbench autoverificable de HSYNC. Pendiente: salida `frame_tick` |
+| Generador de píxeles (paletas, pelota, línea central) | `src/pixel_gen.v` | Hecho, con testbench de bordes. Pendiente: posiciones como entradas |
+| Movimiento de una paleta | `src/paddle_move.v` | Hecho, con testbench |
+| Lógica del juego (pelota, colisiones, puntaje) y FSM | por definir | Pendiente |
 | Decodificador NEC | por definir | Pendiente |
 | Mapeo de teclas | por definir | Pendiente |
 | Módulo superior (top) | por definir | Pendiente |
@@ -100,7 +105,24 @@ Decisiones de diseño:
 - **Prioridad de colores** (de mayor a menor): fuera de la zona visible, paletas, pelota, línea central, fondo. Así la pelota se ve por encima de la línea.
 - **Negro en el blanking:** fuera de `video_on` la salida es siempre `000`, porque el monitor VGA calibra su nivel de negro en esas zonas.
 - **Línea discontinua:** se obtiene con un bit de la coordenada `y` (tramos de 4 filas). Para que sea simétrica entre arriba y abajo se usa una coordenada "doblada" respecto al centro: `y_fold` vale `y` en la mitad superior y `479 - y` en la inferior.
-- **Posiciones como parámetros:** más adelante las posiciones de las paletas y la pelota serán entradas del módulo (las actualizará la lógica del juego), y los `localparam` actuales quedarán como valores iniciales.
+- **Posiciones como parámetros:** las posiciones de las paletas y la pelota pasarán a ser entradas del módulo (las actualizará la lógica del juego), y los `localparam` actuales quedarán como valores iniciales.
+
+### Diseño de `paddle_move`
+
+Mueve el borde superior (`y`) de una paleta con las entradas `up` y `down`. Se instancia una vez por jugador.
+
+| Parámetro | Valor | Significado |
+|---|---|---|
+| `SPEED` | 4 | píxeles por cuadro (240 píxeles por segundo a 60 Hz) |
+| `Y_MIN` | 0 | límite de arriba |
+| `Y_MAX` | 400 | límite de abajo (`SCREEN_H - PADDLE_H`) |
+| `Y_INIT` | 200 | posición inicial (centrada) |
+
+Decisiones de diseño:
+
+- **Una actualización por cuadro:** `y` solo cambia cuando `frame_tick` vale 1. Si cambiara en cada ciclo de 100 MHz, la paleta se movería cientos de millones de píxeles por segundo. Actualizar al terminar la zona visible evita además que la imagen se corte a mitad de un cuadro.
+- **Saturación:** la paleta se detiene en 0 y en 400. Al subir se compara `y <= SPEED` **antes** de restar, porque `y` no tiene signo y `2 - 4` daría 1022 (la paleta saltaría al fondo).
+- **`up` y `down` a la vez:** la paleta no se mueve.
 
 ## Cómo reproducir
 
@@ -130,9 +152,18 @@ iverilog -o sim_pixel src/pixel_gen.v tb/pixel_gen_tb.v
 vvp sim_pixel
 ```
 
-El testbench prueba los bordes de cada objeto (un píxel justo dentro y uno justo fuera de cada cara), la prioridad entre objetos y que `video_on = 0` fuerza negro.
+El testbench comprueba el color de píxeles dentro y justo fuera de cada cara de las paletas, la pelota y la línea central, los tramos de la línea y que `video_on = 0` fuerza negro. La salida debe terminar en `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
 
-### 4. Sintetizar y programar la Basys3
+### 4. Simular `paddle_move`
+
+```bash
+iverilog -o sim_paddle src/paddle_move.v tb/paddle_move_tb.v
+vvp sim_paddle
+```
+
+El testbench comprueba el reset, que sin `frame_tick` no hay movimiento, un paso arriba y uno abajo, los dos botones a la vez, ningún botón y la saturación en 0 y en 400. La salida debe terminar en `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
+
+### 5. Sintetizar y programar la Basys3
 
 *(Por completar cuando exista el módulo superior.)*
 
