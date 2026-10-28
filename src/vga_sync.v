@@ -15,16 +15,16 @@ reg [9:0] h_count, v_count;
 // Combinacional
 assign tick     = (contador == 2'd3);
 assign hsync    = ~(h_count >= 10'd656 && h_count <= 10'd751);  // activo en 0
-assign vsync = ~(v_count >= 10'd490 && v_count <= 10'd491);
+assign vsync    = ~(v_count >= 10'd490 && v_count <= 10'd491);
 assign video_on = (h_count < 10'd640) && (v_count < 10'd480);
-assign x = h_count;
-assign y = v_count;
+assign x        = h_count;
+assign y        = v_count;
  
 always @(posedge clk) begin
     if (reset) begin
         contador <= 2'd0;
-        h_count <= 10'd0;
-        v_count <= 10'd0;
+        h_count  <= 10'd0;
+        v_count  <= 10'd0;
 
     end else begin
         contador <= contador + 1'b1;   // de 3 vuelve a 0 solo, por ser de 2 bits
