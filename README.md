@@ -58,14 +58,14 @@ Receptor IR -> Decodificador NEC -> Mapeo de teclas --+
 Reloj 100 MHz -> clock enable (tick cada 4 ciclos) ---+
 ```
 
-Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia de píxel de ~25 MHz que necesita el VGA se usa un pulso de habilitación (`tick`) cada 4 ciclos, en vez de generar un reloj dividido.
+Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia de píxel de ~25 MHz que necesita el VGA se usa un pulso de habilitación (`tick`) cada 4 ciclos, en vez de generar un reloj dividido. Así hay un único dominio de reloj y se evitan los problemas de temporización y de cruce entre relojes.
 
-### Módulos
+### Módulos y estado
 
 | Módulo | Archivo | Estado |
 |---|---|---|
-| Sincronía VGA | `src/vga_sync.v` | Hecho, con testbench |
-| Generador de píxeles (paletas, pelota, línea central) | por definir | Pendiente |
+| Sincronía VGA | `src/vga_sync.v` | Hecho, con testbench autoverificable de HSYNC |
+| Generador de píxeles (paletas, pelota, línea central) | `src/pixel_gen.v` | Hecho; testbench en progreso |
 | Lógica del juego y FSM | por definir | Pendiente |
 | Decodificador NEC | por definir | Pendiente |
 | Mapeo de teclas | por definir | Pendiente |
@@ -78,18 +78,40 @@ Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia d
 | Horizontal (píxeles) | 640 | 16 | 96 | 48 | 800 |
 | Vertical (líneas) | 480 | 10 | 2 | 33 | 525 |
 
-Las dos sincronías tienen polaridad negativa. Valores esperados en simulación: `tick` cada 40 ns, línea de 32 µs, pulso de HSYNC de 3.84 µs, pulso de VSYNC de 64 µs y cuadro de 16.8 ms.
+Las dos sincronías tienen polaridad negativa (valen 1 en reposo y 0 durante el pulso).
+
+Valores esperados en simulación: `tick` cada 40 ns, línea de 32 µs, pulso de HSYNC de 3.84 µs, pulso de VSYNC de 64 µs y cuadro de 16.8 ms.
+
+### Diseño de `pixel_gen`
+
+El módulo recibe la posición del píxel (`x`, `y`) y `video_on` desde `vga_sync` y devuelve el color de 12 bits (4 por canal). Cada objeto es un rectángulo definido por comparaciones, y las medidas están en `localparam` para cambiarlas en un solo lugar.
+
+| Objeto | Tamaño | Posición inicial | Color (`rgb`) |
+|---|---|---|---|
+| Paleta 1 | 10 x 80 | `x` 20 a 29, centrada en `y` (200 a 279) | `FF3` |
+| Paleta 2 | 10 x 80 | `x` 610 a 619, centrada en `y` (200 a 279) | `F35` |
+| Pelota | 10 x 10 | centrada en la pantalla (`x` 315 a 324, `y` 235 a 244) | `E73` |
+| Línea central | 2 de ancho, discontinua | `x` 319 a 320 | `667` |
+| Fondo (zona visible) | | | `102` |
+| Fuera de la zona visible | | | `000` (siempre negro) |
+
+Decisiones de diseño:
+
+- **Prioridad de colores** (de mayor a menor): fuera de la zona visible, paletas, pelota, línea central, fondo. Así la pelota se ve por encima de la línea.
+- **Negro en el blanking:** fuera de `video_on` la salida es siempre `000`, porque el monitor VGA calibra su nivel de negro en esas zonas.
+- **Línea discontinua:** se obtiene con un bit de la coordenada `y` (tramos de 4 filas). Para que sea simétrica entre arriba y abajo se usa una coordenada "doblada" respecto al centro: `y_fold` vale `y` en la mitad superior y `479 - y` en la inferior.
+- **Posiciones como parámetros:** más adelante las posiciones de las paletas y la pelota serán entradas del módulo (las actualizará la lógica del juego), y los `localparam` actuales quedarán como valores iniciales.
 
 ## Cómo reproducir
 
 ### 1. Clonar el repositorio
 
 ```bash
-git clone https://github.com/<usuario>/Pong_IR.git
+git clone https://github.com/LuisM953/Pong_IR.git
 cd Pong_IR
 ```
 
-### 2. Simular un módulo (ejemplo: `vga_sync`)
+### 2. Simular `vga_sync`
 
 ```bash
 iverilog -o sim src/vga_sync.v tb/vga_sync_tb.v
@@ -97,9 +119,20 @@ vvp sim
 gtkwave vga_sync_tb.vcd
 ```
 
+La salida de la terminal debe decir `PASS: ancho de hsync = 3840 ns`.
+
 En GTKWave, agregar las señales `clk`, `reset`, `tick`, `h_count`, `v_count`, `hsync`, `vsync` y `video_on`, y comprobar los tiempos de la tabla de arriba. Los archivos `.vvp` y `.vcd` se generan al simular y no se suben al repositorio.
 
-### 3. Sintetizar y programar la Basys3
+### 3. Simular `pixel_gen`
+
+```bash
+iverilog -o sim_pixel src/pixel_gen.v tb/pixel_gen_tb.v
+vvp sim_pixel
+```
+
+El testbench prueba los bordes de cada objeto (un píxel justo dentro y uno justo fuera de cada cara), la prioridad entre objetos y que `video_on = 0` fuerza negro.
+
+### 4. Sintetizar y programar la Basys3
 
 *(Por completar cuando exista el módulo superior.)*
 
