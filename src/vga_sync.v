@@ -6,6 +6,7 @@ module vga_sync (
     output wire video_on,   // 1 solo en la zona visible
     output wire [9:0] x,    // columna actual
     output wire [9:0] y,     // fila actual
+    output wire frame_tick,
     output wire tick
 );
 
@@ -13,12 +14,13 @@ reg [1:0] contador; // Contador de 2 bits
 reg [9:0] h_count, v_count;
 
 // Combinacional
-assign tick     = (contador == 2'd3);
-assign hsync    = ~(h_count >= 10'd656 && h_count <= 10'd751);  // activo en 0
-assign vsync    = ~(v_count >= 10'd490 && v_count <= 10'd491);
-assign video_on = (h_count < 10'd640) && (v_count < 10'd480);
-assign x        = h_count;
-assign y        = v_count;
+assign tick       = (contador == 2'd3);
+assign frame_tick = (tick && h_count == 10'd799 && v_count == 10'd524);
+assign hsync      = ~(h_count >= 10'd656 && h_count <= 10'd751);  // activo en 0
+assign vsync      = ~(v_count >= 10'd490 && v_count <= 10'd491);
+assign video_on   = (h_count < 10'd640)  && (v_count < 10'd480);
+assign x          = h_count;
+assign y          = v_count;
  
 always @(posedge clk) begin
     if (reset) begin
