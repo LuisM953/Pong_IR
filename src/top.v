@@ -10,11 +10,9 @@ module top_pong (
     output wire [11:0] rgb
 );
 
-    wire [9:0] x, y;
+    wire [9:0] x, y, p1_y, p2_y, ball_x, ball_y;
     wire video_on;
     wire frame_tick;
-    wire [9:0] p1_y;
-    wire [9:0] p2_y;
 
     vga_sync controlador_vga (
         .clk(clk),
@@ -52,7 +50,17 @@ module top_pong (
         .video_on(video_on),
         .p1_y(p1_y),
         .p2_y(p2_y),
+        .ball_x(ball_x),
+        .ball_y(ball_y),
         .rgb(rgb)
+    );
+
+    ball_move ball (
+        .clk(clk),
+        .reset(reset),
+        .frame_tick(frame_tick),
+        .ball_x(ball_x),
+        .ball_y(ball_y)
     );
 
 endmodule
