@@ -69,7 +69,7 @@ module top_pong_tb;
         reset = 0;
         #10;
         
-        // MODIFICADO: Comprobar que al soltar el reset las paletas valen 200 y la pelota esta en el centro (315, 235)
+        // Comprobar que al soltar el reset las paletas valen 200 y la pelota esta en el centro (315, 235)
         if (dut.p1_y === 10'd200 && dut.p2_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235) begin
             $display("[PASS] Reset: p1_y = 200, p2_y = 200, pelota = (315, 235)");
         end else begin
@@ -87,7 +87,6 @@ module top_pong_tb;
         @(posedge clk); 
         #1; // Esperar 1 ns despues del flanco para leer el registro ya actualizado
         
-        // MODIFICADO: La pelota debio dar un paso hacia arriba e izquierda a (313, 233)
         if (dut.p1_y === 10'd196 && dut.p2_y === 10'd200 && dut.ball_x === 10'd313 && dut.ball_y === 10'd233) begin
             $display("[PASS] up_p1 (Frame 1): p1_y = 196, p2_y = 200, pelota = (313, 233)");
         end else begin
@@ -101,7 +100,6 @@ module top_pong_tb;
         @(posedge clk);
         #1; // Retardo para leer correctamente
         
-        // MODIFICADO: La pelota debio dar otro paso a (311, 231)
         if (dut.p1_y === 10'd192 && dut.p2_y === 10'd200 && dut.ball_x === 10'd311 && dut.ball_y === 10'd231) begin
             $display("[PASS] up_p1 (Frame 2): p1_y = 192, p2_y = 200, pelota = (311, 231)");
         end else begin
@@ -124,7 +122,6 @@ module top_pong_tb;
         @(posedge clk);
         #1; // Retardo para leer correctamente
         
-        // MODIFICADO: p2_y baja en la pantalla (aumenta a 204), p1_y se mantiene, pelota avanza a (309, 229)
         if (dut.p1_y === 10'd192 && dut.p2_y === 10'd204 && dut.ball_x === 10'd309 && dut.ball_y === 10'd229) begin
             $display("[PASS] down_p2 (Frame 3): p1_y = 192, p2_y = 204, pelota = (309, 229)");
         end else begin
@@ -134,6 +131,39 @@ module top_pong_tb;
         end
         
         down_p2 = 0; 
+
+        // MODIFICADO: Prueba 4: Integración Hitbox en Top (Rebote cruzando la paleta 1 en 2 pasos) ---
+        $display("--- Probando integracion de Hitbox en Top ---");
+        
+        // Posición previa al flanco en x = 31
+        dut.movimiento_pelota.ball_x = 10'd31;
+        dut.movimiento_pelota.ball_y = 10'd200;
+        dut.movimiento_pelota.dir_x  = 1'b1;
+        dut.paddle1.y                = 10'd200;
+
+        // Primer frame_tick: la pelota avanza de 31 a 29 (entrando a la hitbox)
+        @(posedge dut.frame_tick);
+        @(posedge clk);
+        #1;
+
+        if (dut.movimiento_pelota.ball_x === 10'd29 && dut.movimiento_pelota.dir_x === 1'b1) begin
+            $display("[PASS] Integracion Hitbox (Paso 1): ball_x = 29, dir_x = 1");
+        end else begin
+            $display("[FAIL] Integracion Hitbox (Paso 1): ball_x = %0d, dir_x = %b (Esperado: 29, 1)", dut.movimiento_pelota.ball_x, dut.movimiento_pelota.dir_x);
+            error_count = error_count + 1;
+        end
+
+        // Segundo frame_tick: la pelota detecta hit_p1, rebota y se posiciona en 30 con dir_x = 0
+        @(posedge dut.frame_tick);
+        @(posedge clk);
+        #1;
+
+        if (dut.movimiento_pelota.ball_x === 10'd30 && dut.movimiento_pelota.dir_x === 1'b0) begin
+            $display("[PASS] Integracion Hitbox (Paso 2): Rebote exitoso, ball_x = 30, dir_x = 0");
+        end else begin
+            $display("[FAIL] Integracion Hitbox (Paso 2): ball_x = %0d, dir_x = %b (Esperado: 30, 0)", dut.movimiento_pelota.ball_x, dut.movimiento_pelota.dir_x);
+            error_count = error_count + 1;
+        end
 
         $display("=== Simulacion Finalizada ===");
         if (error_count == 0) begin

@@ -6,6 +6,10 @@ module tb_ball_move;
     reg clk;
     reg reset;
     reg frame_tick;
+    
+    // MODIFICADO: Estímulos independientes para aislar ball_move
+    reg hit_p1_reg;
+    reg hit_p2_reg;
 
     wire [9:0] ball_x;
     wire [9:0] ball_y;
@@ -13,11 +17,13 @@ module tb_ball_move;
     integer error_count = 0;
     integer i;
 
-    // 2. Instancia del modulo a probar (DUT)
+    // 2. Instancia del modulo a probar (DUT) conectada a los registros de control
     ball_move uut (
         .clk(clk),
         .reset(reset),
         .frame_tick(frame_tick),
+        .hit_p1(hit_p1_reg), // MODIFICADO: Controlado desde el testbench
+        .hit_p2(hit_p2_reg), // MODIFICADO: Controlado desde el testbench
         .ball_x(ball_x),
         .ball_y(ball_y)
     );
@@ -53,6 +59,8 @@ module tb_ball_move;
 
         clk = 0;
         frame_tick = 0;
+        hit_p1_reg = 0; // MODIFICADO: Inicializar en 0
+        hit_p2_reg = 0; // MODIFICADO: Inicializar en 0
 
         // -------------------------------------------------------------
         // 1. Reset
@@ -89,88 +97,122 @@ module tb_ball_move;
         #10;
 
         // -------------------------------------------------------------
-        // 4 y 5. Cuatro rebotes y ajuste exacto a limites (Overshoot)
+        // 4 y 5. Pruebas de Rebote (Hitbox aislada) y Ajustes exactos
         // -------------------------------------------------------------
-        $display("--- Rebotes y Ajuste Exacto a Limites (Overshoot) ---");
+        $display("--- Pruebas de Colision y Rebote con Paletas ---");
+
+        // --- Caso A: Golpe en Paleta 1 (ball_x en zona de golpe = 29, y esperada = 202 por dir_y = abajo) ---
+        uut.ball_x = 10'd29; uut.ball_y = 10'd200; uut.dir_x = 1'b1; uut.dir_y = 1'b0;
+        hit_p1_reg = 1'b1; // Activar golpe P1
+        #10;
+        check_ball(1'b1, 10'd30, 10'd202, "Golpe P1: ball_x=29 -> ajusta a 30");
+        if (uut.dir_x !== 1'b0) begin
+            $display("[FAIL] Golpe P1: dir_x no invirtio a 0");
+            error_count = error_count + 1;
+        end
+        hit_p1_reg = 0; // Limpiar estímulo
+        frame_tick = 0; #10;
+
+        // --- Caso B: Golpe en Paleta 2 (ball_x en zona de golpe = 601, y esperada = 202) ---
+        uut.ball_x = 10'd601; uut.ball_y = 10'd200; uut.dir_x = 1'b0; uut.dir_y = 1'b0;
+        hit_p2_reg = 1'b1; // Activar golpe P2
+        #10;
+        check_ball(1'b1, 10'd600, 10'd202, "Golpe P2: ball_x=601 -> ajusta a 600");
+        if (uut.dir_x !== 1'b1) begin
+            $display("[FAIL] Golpe P2: dir_x no invirtio a 1");
+            error_count = error_count + 1;
+        end
+        hit_p2_reg = 0; // Limpiar estímulo
+        frame_tick = 0; #10;
+
+        // --- Caso C: Pelota alejándose de P1 (hit_p1_reg activo pero dir_x = 0, no debe rebotar) ---
+        uut.ball_x = 10'd25; uut.ball_y = 10'd200; uut.dir_x = 1'b0; uut.dir_y = 1'b0;
+        hit_p1_reg = 1'b1; // hit activo por posición, pero se aleja
+        #10;
+        check_ball(1'b1, 10'd27, 10'd202, "Sin rebote P1: Pelota alejandose");
+        // MODIFICADO: Comprobar también que dir_x no cambió
+        if (uut.dir_x !== 1'b0) begin
+            $display("[FAIL] Sin rebote P1: dir_x cambio indebidamente");
+            error_count = error_count + 1;
+        end
+        hit_p1_reg = 0;
+        frame_tick = 0; #10;
+
+        // --- Caso D: Pelota alejándose de P2 (hit_p2_reg activo pero dir_x = 1, no debe rebotar) ---
+        uut.ball_x = 10'd605; uut.ball_y = 10'd200; uut.dir_x = 1'b1; uut.dir_y = 1'b0;
+        hit_p2_reg = 1'b1; // hit activo por posición, pero se aleja
+        #10;
+        check_ball(1'b1, 10'd603, 10'd202, "Sin rebote P2: Pelota alejandose");
+        // MODIFICADO: Comprobar también que dir_x no cambió
+        if (uut.dir_x !== 1'b1) begin
+            $display("[FAIL] Sin rebote P2: dir_x cambio indebidamente");
+            error_count = error_count + 1;
+        end
+        hit_p2_reg = 0;
+        frame_tick = 0; #10;
 
         // --- Pared Izquierda (X_MIN = 10) ---
-        // MODIFICADO: Aterrizaje exacto (Detecta mutante <= vs <)
-        uut.ball_x = 10'd12;
-        uut.dir_x  = 1'b1;
+        uut.ball_x = 10'd12; uut.ball_y = 10'd200; uut.dir_x = 1'b1; uut.dir_y = 1'b0;
         #10;
-        check_ball(1'b1, 10'd10, 10'd227, "Rebote Izq: Aterrizaje exacto (12->10)");
+        check_ball(1'b1, 10'd10, 10'd202, "Rebote Izq: Aterrizaje exacto (12->10)");
         if (uut.dir_x !== 1'b0) begin
             $display("[FAIL] Rebote Izq Exacto: dir_x no cambio a 0");
             error_count = error_count + 1;
         end
         frame_tick = 0; #10;
 
-        // MODIFICADO: Overshoot
-        uut.ball_x = 10'd11;
-        uut.dir_x  = 1'b1;
+        uut.ball_x = 10'd11; uut.ball_y = 10'd200; uut.dir_x = 1'b1; uut.dir_y = 1'b0;
         #10;
-        check_ball(1'b1, 10'd10, 10'd225, "Rebote Izq: Overshoot (11->10)");
-        check_ball(1'b1, 10'd12, 10'd223, "Rebote Izq: Cuadro posterior (12)");
+        check_ball(1'b1, 10'd10, 10'd202, "Rebote Izq: Overshoot (11->10)");
+        check_ball(1'b1, 10'd12, 10'd204, "Rebote Izq: Cuadro posterior (12)");
         frame_tick = 0; #10;
 
         // --- Pared Derecha (X_MAX = 620) ---
-        // MODIFICADO: Aterrizaje exacto
-        uut.ball_x = 10'd618;
-        uut.dir_x  = 1'b0;
+        uut.ball_x = 10'd618; uut.ball_y = 10'd200; uut.dir_x = 1'b0; uut.dir_y = 1'b0;
         #10;
-        check_ball(1'b1, 10'd620, 10'd221, "Rebote Der: Aterrizaje exacto (618->620)");
+        check_ball(1'b1, 10'd620, 10'd202, "Rebote Der: Aterrizaje exacto (618->620)");
         if (uut.dir_x !== 1'b1) begin
             $display("[FAIL] Rebote Der Exacto: dir_x no cambio a 1");
             error_count = error_count + 1;
         end
         frame_tick = 0; #10;
 
-        // MODIFICADO: Overshoot
-        uut.ball_x = 10'd619;
-        uut.dir_x  = 1'b0;
+        uut.ball_x = 10'd619; uut.ball_y = 10'd200; uut.dir_x = 1'b0; uut.dir_y = 1'b0;
         #10;
-        check_ball(1'b1, 10'd620, 10'd219, "Rebote Der: Overshoot (619->620)");
-        check_ball(1'b1, 10'd618, 10'd217, "Rebote Der: Cuadro posterior (618)");
+        check_ball(1'b1, 10'd620, 10'd202, "Rebote Der: Overshoot (619->620)");
+        check_ball(1'b1, 10'd618, 10'd204, "Rebote Der: Cuadro posterior (618)");
         frame_tick = 0; #10;
 
         // --- Pared Superior (Y_MIN = 10) ---
-        // MODIFICADO: Aterrizaje exacto
-        uut.ball_y = 10'd12;
-        uut.dir_y  = 1'b1;
+        uut.ball_x = 10'd300; uut.ball_y = 10'd12; uut.dir_x = 1'b0; uut.dir_y = 1'b1;
         #10;
-        check_ball(1'b1, 10'd616, 10'd10, "Rebote Sup: Aterrizaje exacto (12->10)");
+        check_ball(1'b1, 10'd302, 10'd10, "Rebote Sup: Aterrizaje exacto (12->10)");
         if (uut.dir_y !== 1'b0) begin
             $display("[FAIL] Rebote Sup Exacto: dir_y no cambio a 0");
             error_count = error_count + 1;
         end
         frame_tick = 0; #10;
 
-        // MODIFICADO: Overshoot
-        uut.ball_y = 10'd11;
-        uut.dir_y  = 1'b1;
+        uut.ball_x = 10'd300; uut.ball_y = 10'd11; uut.dir_x = 1'b0; uut.dir_y = 1'b1;
         #10;
-        check_ball(1'b1, 10'd614, 10'd10, "Rebote Sup: Overshoot (11->10)");
-        check_ball(1'b1, 10'd612, 10'd12, "Rebote Sup: Cuadro posterior (12)");
+        check_ball(1'b1, 10'd302, 10'd10, "Rebote Sup: Overshoot (11->10)");
+        check_ball(1'b1, 10'd304, 10'd12, "Rebote Sup: Cuadro posterior (12)");
         frame_tick = 0; #10;
 
         // --- Pared Inferior (Y_MAX = 460) ---
-        // MODIFICADO: Aterrizaje exacto
-        uut.ball_y = 10'd458;
-        uut.dir_y  = 1'b0;
+        uut.ball_x = 10'd300; uut.ball_y = 10'd458; uut.dir_x = 1'b0; uut.dir_y = 1'b0;
         #10;
-        check_ball(1'b1, 10'd610, 10'd460, "Rebote Inf: Aterrizaje exacto (458->460)");
+        check_ball(1'b1, 10'd302, 10'd460, "Rebote Inf: Aterrizaje exacto (458->460)");
         if (uut.dir_y !== 1'b1) begin
             $display("[FAIL] Rebote Inf Exacto: dir_y no cambio a 1");
             error_count = error_count + 1;
         end
         frame_tick = 0; #10;
 
-        // MODIFICADO: Overshoot
-        uut.ball_y = 10'd459;
-        uut.dir_y  = 1'b0;
+        uut.ball_x = 10'd300; uut.ball_y = 10'd459; uut.dir_x = 1'b0; uut.dir_y = 1'b0;
         #10;
-        check_ball(1'b1, 10'd608, 10'd460, "Rebote Inf: Overshoot (459->460)");
-        check_ball(1'b1, 10'd606, 10'd458, "Rebote Inf: Cuadro posterior (458)");
+        check_ball(1'b1, 10'd302, 10'd460, "Rebote Inf: Overshoot (459->460)");
+        check_ball(1'b1, 10'd304, 10'd458, "Rebote Inf: Cuadro posterior (458)");
 
         // -------------------------------------------------------------
         // 6. Bucle largo (Simulacion de 2000 cuadros)

@@ -2,6 +2,8 @@ module ball_move (
     input  wire clk,
     input  wire reset,
     input  wire frame_tick,
+    input  wire hit_p1,
+    input  wire hit_p2,
     output reg  [9:0] ball_x,   // columna del borde izquierdo de la pelota
     output reg  [9:0] ball_y   // fila del borde superior de la pelota
 );
@@ -9,13 +11,17 @@ module ball_move (
 localparam  SCREEN_W      = 640,
             SCREEN_H      = 480,
             BORDER_W      = 10,
+            PADDLE_W      = 10,
             BALL_W        = 10,
             BALL_H        = 10,
+            MARGIN        = 20,
             BALL_SPEED    = 2,
             X_MIN         = BORDER_W,
             Y_MIN         = BORDER_W,
             X_MAX         = SCREEN_W - BALL_W - BORDER_W,
             Y_MAX         = SCREEN_H - BALL_H - BORDER_W,
+            P1_X          = MARGIN,
+            P2_X          = (SCREEN_W - MARGIN - PADDLE_W),
             BALL_X_INICIO = (SCREEN_W/2 - BALL_W/2),
             BALL_Y_INICIO = (SCREEN_H/2 - BALL_H/2);
             
@@ -29,14 +35,20 @@ always @(posedge clk) begin
         dir_y <= 1; // direccion inicial: arriba
     end else if (frame_tick) begin
         if (dir_x == 1) begin //izquierda
-            if (ball_x <= X_MIN + BALL_SPEED) begin
+            if (hit_p1) begin
+                ball_x <= P1_X + PADDLE_W; // reposicionar pelota a la derecha de la paleta
+                dir_x <= !dir_x; // cambiar direccion a derecha
+            end else if (ball_x <= X_MIN + BALL_SPEED) begin
                 ball_x <= X_MIN;
                 dir_x <= !dir_x; // cambiar direccion a derecha
             end else begin
                 ball_x <= ball_x - BALL_SPEED;
             end
         end else begin // derecha
-            if (ball_x >= X_MAX - BALL_SPEED) begin
+            if (hit_p2) begin
+                ball_x <= P2_X - BALL_W; // reposicionar pelota a la izquierda de la paleta
+                dir_x <= !dir_x; // cambiar direccion a izquierda
+            end else if (ball_x >= X_MAX - BALL_SPEED) begin
                 ball_x <= X_MAX;
                 dir_x <= !dir_x; // cambiar direccion a izquierda
             end else begin
