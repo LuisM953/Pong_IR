@@ -38,11 +38,20 @@ module top_pong_tb;
 
     // Comprobacion continua de Salida de Video (Blanking)
     always @(posedge clk) begin
-        // Durante el blanking (video_on = 0), el rgb debe ser 000 siempre.
-        if (!reset && dut.video_on == 1'b0) begin
-            if (rgb !== 12'h000) begin
-                $display("[FAIL] Blanking: rgb = %h (Esperado: 000) en x:%0d, y:%0d", rgb, dut.x, dut.y);
-                error_count = error_count + 1;
+        if (!reset) begin
+            // Durante el blanking (video_on = 0), el rgb debe ser 000 siempre.
+            if (dut.video_on == 1'b0) begin
+                if (rgb !== 12'h000) begin
+                    $display("[FAIL] Blanking: rgb = %h (Esperado: 000) en x:%0d, y:%0d", rgb, dut.x, dut.y);
+                    error_count = error_count + 1;
+                end
+            end 
+            // MODIFICADO: Integracion RGB Pelota (esquina superior izq)
+            else if (dut.x == dut.ball_x && dut.y == dut.ball_y) begin 
+                if (rgb !== 12'hE73) begin
+                    $display("[FAIL] Integracion Pelota: rgb = %h (Esperado: E73) en x:%0d, y:%0d", rgb, dut.x, dut.y);
+                    error_count = error_count + 1;
+                end
             end
         end
     end
@@ -69,7 +78,7 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // --- Prueba 2: Movimiento con boton (Jugador 1) y avance de la pelota ---
+        // --- Prueba 2: Movimiento con boton (Jugador 1) ---
         $display("--- Probando up_p1 (Jugador 1) durante varios cuadros ---");
         up_p1 = 1; 
         
@@ -104,7 +113,7 @@ module top_pong_tb;
         // Al apagar el boton aqui (1 ns despues del flanco), evitamos la carrera del caso 2.
         up_p1 = 0; 
 
-        // --- Prueba 3: Los dos jugadores (Jugador 2) y avance continuo de la pelota ---
+        // --- Prueba 3: Los dos jugadores (Jugador 2) ---
         $display("--- Probando down_p2 (Jugador 2) ---");
         
         // Al encender el boton aqui, lo hacemos lejos del flanco anterior.
