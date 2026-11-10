@@ -6,6 +6,8 @@ module pixel_gen_tb;
     reg [9:0] x;
     reg [9:0] y;
     reg video_on;
+    reg [9:0] p1_y;
+    reg [9:0] p2_y;
 
     // Salida
     wire [11:0] rgb;
@@ -17,6 +19,8 @@ module pixel_gen_tb;
         .x(x),
         .y(y),
         .video_on(video_on),
+        .p1_y(p1_y),
+        .p2_y(p2_y),
         .rgb(rgb)
     );
 
@@ -35,9 +39,9 @@ module pixel_gen_tb;
             #10; // Espera para propagacion combinacional
 
             if (rgb === expected_rgb) begin
-                $display("[PASS] %-35s | x:%3d, y:%3d, vid:%b | Salida: %h", test_name, test_x, test_y, test_video, rgb);
+                $display("[PASS] %-40s | x:%3d, y:%3d, vid:%b | Salida: %h", test_name, test_x, test_y, test_video, rgb);
             end else begin
-                $display("[FAIL] %-35s | x:%3d, y:%3d, vid:%b | Salida: %h (Esp: %h)", test_name, test_x, test_y, test_video, rgb, expected_rgb);
+                $display("[FAIL] %-40s | x:%3d, y:%3d, vid:%b | Salida: %h (Esp: %h)", test_name, test_x, test_y, test_video, rgb, expected_rgb);
                 error_count = error_count + 1;
             end
         end
@@ -45,6 +49,10 @@ module pixel_gen_tb;
 
     initial begin
         $display("=== Iniciando simulacion ===");
+        
+        // Inicializar posiciones fijas para pruebas heredadas
+        p1_y = 10'd200;
+        p2_y = 10'd200;
 
         // --- 1. Video desactivado ---
         check_pixel(10'd20,  10'd200, 1'b0, 12'h000, "Video apagado en P1");
@@ -75,7 +83,7 @@ module pixel_gen_tb;
         // --- 5. Pelota (X: 315..324, Y: 235..244) ---
         check_pixel(10'd315, 10'd235, 1'b1, 12'hE73, "Pelota: Esquina Sup-Izq");
         check_pixel(10'd324, 10'd244, 1'b1, 12'hE73, "Pelota: Esquina Inf-Der");
-        // Casos de borde Pelota (evitando X=319..320 para no cruzar con Línea Central)
+        // Casos de borde Pelota
         check_pixel(10'd314, 10'd240, 1'b1, 12'h102, "Pelota Borde: 1px Izq (Fondo)");
         check_pixel(10'd325, 10'd240, 1'b1, 12'h102, "Pelota Borde: 1px Der (Fondo)");
         check_pixel(10'd317, 10'd234, 1'b1, 12'h102, "Pelota Borde: 1px Arr (Fondo)");
@@ -88,6 +96,14 @@ module pixel_gen_tb;
         // Casos de borde Linea Central
         check_pixel(10'd318, 10'd4,   1'b1, 12'h102, "Linea Borde: 1px Izq (Fondo)");
         check_pixel(10'd321, 10'd4,   1'b1, 12'h102, "Linea Borde: 1px Der (Fondo)");
+        
+        // --- 7. Casos limite con paleta desplazada (p1_y = 0) ---
+        p1_y = 10'd0;
+        check_pixel(10'd20,  10'd0,   1'b1, 12'hFF3, "P1 Desplazado (Y=0): Esq Sup-Izq");
+        check_pixel(10'd29,  10'd79,  1'b1, 12'hFF3, "P1 Desplazado (Y=0): Esq Inf-Der");
+        check_pixel(10'd25,  10'd80,  1'b1, 12'h102, "P1 Desplazado Borde: 1px Abajo (Fondo)");
+        check_pixel(10'd19,  10'd40,  1'b1, 12'h102, "P1 Desplazado Borde: 1px Izq (Fondo)");
+        check_pixel(10'd30,  10'd40,  1'b1, 12'h102, "P1 Desplazado Borde: 1px Der (Fondo)");
 
         $display("=== Simulacion Finalizada ===");
         if (error_count == 0) begin
