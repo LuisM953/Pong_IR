@@ -46,12 +46,14 @@ Pong_IR/
 │   ├── vga_sync.v      # temporización VGA, tick y frame_tick
 │   ├── pixel_gen.v     # color de cada píxel
 │   ├── paddle_move.v   # movimiento de una paleta
+│   ├── ir_sync_detector.v  # sincroniza la señal del receptor IR y detecta flancos
 │   └── top.v           # módulo superior (top_pong)
 ├── tb/
 │   ├── vga_sync_tb.v
 │   ├── pixel_gen_tb.v
 │   ├── paddle_move_tb.v
-│   └── top_tb.v
+│   ├── top_tb.v
+│   └── tb_ir_sync_detector.v
 ├── constraints/
 │   └── Basys3.xdc      # asignación de pines de la Basys3
 ├── docs/           # informe, diagramas y capturas de simulación
@@ -62,7 +64,7 @@ Pong_IR/
 ## Arquitectura
 
 ```
-Receptor IR -> Decodificador NEC -> Mapeo de teclas -> up/down de cada jugador
+Receptor IR -> ir_sync_detector -> Decodificador NEC -> Mapeo de teclas -> up/down de cada jugador
                                                               |
                                                               v
                                           paddle_move (x2) -> posición y de cada paleta
@@ -83,6 +85,7 @@ Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia d
 | Generador de píxeles (paletas, pelota, línea central, borde) | `src/pixel_gen.v` | Hecho, con testbench de bordes. Recibe `p1_y` y `p2_y` como entradas. Pendiente: posición de la pelota como entrada |
 | Movimiento de una paleta | `src/paddle_move.v` | Hecho, con testbench (límites ajustados al borde) |
 | Lógica del juego (pelota, colisiones, puntaje) y FSM | por definir | Pendiente |
+| Sincronizador y detector de flancos del receptor IR | `src/ir_sync_detector.v` | Hecho (Jose Miguel Sedano). Su testbench (`tb/tb_ir_sync_detector.v`) solo muestra formas de onda: falta la comprobación automática y los casos límite |
 | Decodificador NEC | por definir | Pendiente |
 | Mapeo de teclas | por definir | Pendiente |
 | Módulo superior (top) | `src/top.v` (módulo `top_pong`) | Hecho, con testbench (`tb/top_tb.v`). Probado en la Basys3 con un monitor VGA: las paletas se mueven con los botones |
@@ -195,7 +198,17 @@ vvp sim_top
 
 Hay que listar **todos** los archivos fuente: el top instancia a los demás módulos y, si falta alguno, Icarus responde `Unknown module type`. El testbench comprueba que al soltar el reset las dos paletas valen 200, que mantener `up_p1` mueve solo la paleta 1 cuatro píxeles por cuadro, que `down_p2` mueve solo la paleta 2, y que `rgb` vale `000` siempre que `video_on = 0`. Simula unos 50 ms (tres cuadros) y tiene un temporizador de seguridad de 100 ms. Las lecturas se hacen 1 ns después del flanco de reloj, porque `y` se actualiza con asignación no bloqueante en ese flanco.
 
-### 6. Sintetizar y programar la Basys3
+### 6. Simular `ir_sync_detector`
+
+```bash
+iverilog -o sim_ir src/ir_sync_detector.v tb/tb_ir_sync_detector.v
+vvp sim_ir
+gtkwave ondas_detector.vcd
+```
+
+El testbench baja `ir_rx` (como si se pulsara un botón del control) y lo vuelve a subir. En las formas de onda se ve que `ir_sync` es `ir_rx` retrasada dos ciclos de reloj, y que `flanco_bajada` y `flanco_subida` son pulsos de un ciclo. Por ahora el testbench no comprueba nada automáticamente.
+
+### 7. Sintetizar y programar la Basys3
 
 1. Crear un proyecto en Vivado para la parte `xc7a35tcpg236-1`.
 2. Agregar los cuatro archivos de `src/` como fuentes y `constraints/Basys3.xdc` como restricciones.
@@ -220,7 +233,7 @@ En el archivo de Digilent los pines VGA aparecen agrupados rojo, azul, verde, y 
 
 ### Limitaciones conocidas
 
-- Los botones entran directamente a los registros, sin sincronizar con el reloj ni filtrar rebotes. Para mantenerlos pulsados no afecta, pero queda pendiente agregar una cadena de dos registros.
+- Los botones entran directamente a los registros, sin sincronizar con el reloj ni filtrar rebotes. Para mantenerlos pulsados no afecta, pero queda pendiente agregar una cadena de dos registros (el mismo esquema de `ir_sync_detector` sirve).
 - Todavía no hay pelota en movimiento, marcador ni máquina de estados, y el control por IR no está integrado.
 
 ## Uso de IA
