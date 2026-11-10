@@ -17,7 +17,7 @@ Juego de Pong para dos jugadores que se muestra en un monitor VGA de 640x480 a 6
 - [ ] Decodificación de las teclas de dos controles IR.
 - [ ] Un par de teclas asignado a cada jugador (subir y bajar).
 - [ ] El juego se muestra en una pantalla VGA.
-- [ ] Testbench por cada módulo, con casos límite (hecho para `vga_sync`, `pixel_gen`, `paddle_move`, `ball_move` y el módulo superior `top_pong`).
+- [ ] Testbench por cada módulo, con casos límite (hecho para `vga_sync`, `pixel_gen`, `paddle_move`, `ball_move`, `hitbox` y el módulo superior `top_pong`).
 
 ## Hardware
 
@@ -46,7 +46,8 @@ Pong_IR/
 │   ├── vga_sync.v      # temporización VGA, tick y frame_tick
 │   ├── pixel_gen.v     # color de cada píxel
 │   ├── paddle_move.v   # movimiento de una paleta
-│   ├── ball_move.v     # movimiento y rebote de la pelota
+│   ├── ball_move.v     # movimiento y rebote de la pelota (paredes y paletas)
+│   ├── hitbox.v        # detecta el golpe de la pelota contra cada paleta
 │   ├── ir_sync_detector.v  # sincroniza la señal del receptor IR y detecta flancos
 │   └── top.v           # módulo superior (top_pong)
 ├── tb/
@@ -54,6 +55,7 @@ Pong_IR/
 │   ├── pixel_gen_tb.v
 │   ├── paddle_move_tb.v
 │   ├── ball_move_tb.v
+│   ├── hitbox_tb.v
 │   ├── top_tb.v
 │   └── tb_ir_sync_detector.v
 ├── constraints/
@@ -71,8 +73,12 @@ Receptor IR -> ir_sync_detector -> Decodificador NEC -> Mapeo de teclas -> up/do
                                                               v
                                           paddle_move (x2) -> posición y de cada paleta
                                                               |
-                                                              v
-Reloj 100 MHz -> vga_sync -> x, y, video_on, frame_tick ---> pixel_gen -> rgb -> Monitor
+                          +-----------------------------------+
+                          v                                   v
+        hitbox <--- ball_x, ball_y <--- ball_move        pixel_gen -> rgb -> Monitor
+          |  hit_p1, hit_p2 (golpe)         ^                 ^
+          +---------------------------------+                 |
+Reloj 100 MHz -> vga_sync -> x, y, video_on, frame_tick -------+ (frame_tick también va a paddle_move y ball_move)
 ```
 
 Por ahora los controles son los botones de la Basys3 (ver tabla de pines). El receptor IR, el decodificador NEC y el mapeo de teclas reemplazarán esas entradas `up`/`down` sin cambiar el resto del diseño. El módulo `top_pong` (`src/top.v`) solo conecta los módulos entre sí y con los pines de la tarjeta.
@@ -86,12 +92,13 @@ Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia d
 | Sincronía VGA | `src/vga_sync.v` | Hecho, con testbench autoverificable (HSYNC y `frame_tick`) |
 | Generador de píxeles (paletas, pelota, línea central, borde) | `src/pixel_gen.v` | Hecho, con testbench de bordes y de prioridades. Recibe `p1_y`, `p2_y`, `ball_x` y `ball_y` como entradas |
 | Movimiento de una paleta | `src/paddle_move.v` | Hecho, con testbench (límites ajustados al borde) |
-| Movimiento de la pelota | `src/ball_move.v` | Hecho, con testbench (rebotes en las cuatro paredes). Todavía no choca con las paletas |
-| Colisiones con las paletas, puntaje y FSM | por definir | Pendiente |
+| Movimiento de la pelota | `src/ball_move.v` | Hecho, con testbench: rebotes en las paredes superior e inferior y, por ahora, también en las laterales; rebote contra las paletas con las entradas `hit_p1` y `hit_p2` |
+| Detección de golpe contra las paletas | `src/hitbox.v` | Hecho, con testbench de bordes (un píxel dentro y uno fuera de cada límite) |
+| Puntaje, línea de gol y FSM | por definir | Pendiente: las paredes laterales pasarán a ser la línea de gol |
 | Sincronizador y detector de flancos del receptor IR | `src/ir_sync_detector.v` | Hecho (Jose Miguel Sedano). Su testbench (`tb/tb_ir_sync_detector.v`) solo muestra formas de onda: falta la comprobación automática y los casos límite |
 | Decodificador NEC | por definir | Pendiente |
 | Mapeo de teclas | por definir | Pendiente |
-| Módulo superior (top) | `src/top.v` (módulo `top_pong`) | Hecho, con testbench (`tb/top_tb.v`). Probado en la Basys3 con un monitor VGA: las paletas se mueven con los botones (la pelota se agregó después de esa prueba en tarjeta) |
+| Módulo superior (top) | `src/top.v` (módulo `top_pong`) | Hecho, con testbench (`tb/top_tb.v`). Probado en la Basys3 con un monitor VGA: las paletas se mueven con los botones (la pelota y la colisión se agregaron después de esa prueba en tarjeta) |
 
 ### Parámetros de `vga_sync` (640x480 a 60 Hz)
 
@@ -149,7 +156,7 @@ Decisiones de diseño:
 
 ### Diseño de `ball_move`
 
-Mueve la pelota (esquina superior izquierda, `ball_x` y `ball_y`) y la hace rebotar en el borde. Se puede ver como una **recta**: en cada cuadro la posición suma la velocidad (`x += vx`, `y += vy`), y la pendiente es `vy/vx`. Al rebotar contra una pared solo se invierte una dirección y la pendiente se conserva en valor absoluto.
+Mueve la pelota (esquina superior izquierda, `ball_x` y `ball_y`) y la hace rebotar en el borde y en las paletas. Se puede ver como una **recta**: en cada cuadro la posición suma la velocidad (`x += vx`, `y += vy`), y la pendiente es `vy/vx`. Al rebotar contra una pared solo se invierte una dirección y la pendiente se conserva en valor absoluto.
 
 | Parámetro | Valor | Significado |
 |---|---|---|
@@ -158,6 +165,8 @@ Mueve la pelota (esquina superior izquierda, `ball_x` y `ball_y`) y la hace rebo
 | `X_MAX` | 620 | límite derecho (`SCREEN_W - BALL_W - BORDER_W`) |
 | `Y_MAX` | 460 | límite inferior (`SCREEN_H - BALL_H - BORDER_W`) |
 | Posición inicial | (315, 235) | centro de la pantalla |
+| Ajuste al golpear la paleta 1 | `ball_x` = 30 | `P1_X + PADDLE_W`, pegada a la cara derecha de la paleta |
+| Ajuste al golpear la paleta 2 | `ball_x` = 600 | `P2_X - BALL_W`, pegada a la cara izquierda de la paleta |
 
 Decisiones de diseño:
 
@@ -165,8 +174,27 @@ Decisiones de diseño:
 - **Una actualización por cuadro:** solo se mueve con `frame_tick`, en el blanking, igual que las paletas. Así no se ve a medias dentro de un cuadro.
 - **Convención de dirección:** `dir = 0` significa derecha o abajo (se suma) y `dir = 1` izquierda o arriba (se resta). Tras el reset ambas valen 1: la pelota sale hacia arriba y a la izquierda.
 - **Rebote sin resta peligrosa:** se compara `ball_x <= X_MIN + BALL_SPEED` **antes** de restar. Si se restara primero, `ball_x - 2` con `ball_x = 1` daría 1023 (los números de 10 bits no tienen signo) y no se detectaría el rebote. Al rebotar se escribe `X_MIN` (o `X_MAX`, `Y_MIN`, `Y_MAX`) directamente, así que la pelota nunca se sale ni queda dentro de la pared.
-- **Sin túnel:** la velocidad debe ser menor que el tamaño de lo que la detiene. Con 2 píxeles por cuadro y paletas de 10 de ancho no puede atravesarlas sin que se detecte el choque.
-- **Pendiente:** todavía no hay choque con las paletas ni punto cuando la pelota llega a un lado: hoy rebota en las cuatro paredes.
+- **Golpe contra las paletas:** `ball_move` recibe `hit_p1` y `hit_p2` de `hitbox`. El golpe de la paleta 1 solo se evalúa dentro de la rama "va hacia la izquierda" (`dir_x == 1`) y el de la paleta 2 dentro de la rama "va hacia la derecha". Así, aunque `hit_p1` siga valiendo 1 en el cuadro siguiente al rebote, la pelota ya se aleja y no rebota otra vez (la dirección es la memoria que evita el doble rebote). Dentro de cada rama el orden es: golpe, pared, avance normal. Solo una asignación a `ball_x` se ejecuta por cuadro; con dos `if` separados ganaría la última asignación y el ajuste a la cara se perdería.
+- **Ajuste a la cara:** al golpear, `ball_x` se escribe directamente en 30 (o 600), igual que se hace con las paredes. La pelota llega a 29 en un cuadro, queda 1 píxel dentro de la paleta durante ese cuadro y al siguiente se coloca en la cara.
+- **Sin túnel:** la zona de golpe mide `PADDLE_W` = 10 columnas, así que la velocidad debe cumplir `BALL_SPEED <= PADDLE_W`. Con 2 píxeles por cuadro siempre hay un cuadro dentro de la zona. Con una velocidad mayor que 10 la pelota puede saltarse la zona según en qué columna llegue (error intermitente). Si en el futuro la pelota acelera, habrá que ensanchar la zona o comprobar si el paso cruza la cara de la paleta.
+- **Pendiente:** la pelota todavía rebota en las paredes laterales; ahí será el gol y el reinicio de la jugada.
+
+### Diseño de `hitbox`
+
+Combinacional (solo `assign`, sin reloj ni memoria). Recibe `p1_y`, `p2_y`, `ball_x` y `ball_y` y devuelve `hit_p1` y `hit_p2`. Hay golpe cuando la pelota solapa a la paleta en y y su borde de ataque cae dentro del ancho de la paleta en x.
+
+| Señal | Condición |
+|---|---|
+| `hit_p1` | `ball_x` de 20 a 29 (`P1_X` a `P1_X + PADDLE_W - 1`) y `ball_y` de `p1_y - 9` a `p1_y + 79` |
+| `hit_p2` | `ball_x` de 601 a 610 (`P2_X - BALL_W + 1` a `P2_X`) y `ball_y` de `p2_y - 9` a `p2_y + 79` |
+
+Decisiones de diseño:
+
+- **Solape en y con desigualdades estrictas:** dos intervalos se solapan si `ball_y < p_y + PADDLE_H` y `ball_y + BALL_H > p_y`. Con `<=` y `>=` los rectángulos que solo se tocan por el borde contarían como golpe (un error de uno en cada extremo).
+- **Zona de golpe recortada a la cara de la paleta:** para la paleta 1 se usa el borde izquierdo de la pelota (`ball_x` de 20 a 29) y para la paleta 2 su borde derecho (`ball_x + BALL_W - 1` de 610 a 619). Así una pelota que ya pasó la paleta y está detrás de ella no da golpe. El solape geométrico completo sería más ancho (11 a 29), pero permitiría rebotar desde atrás de la paleta.
+- **Geometría pura:** `hitbox` no sabe hacia dónde va la pelota; eso lo decide `ball_move` con `dir_x`. Por eso `hitbox` no tiene memoria y se prueba con un testbench sin reloj.
+- **Sin lazo combinacional:** `hitbox` lee `ball_x` y `ball_y`, que son registros de `ball_move`, y `ball_move` lee `hit_p1` y `hit_p2`. El lazo pasa por los registros, que solo cambian en el flanco de reloj, así que no hay realimentación combinacional.
+- **Constantes repetidas:** `PADDLE_W`, `PADDLE_H`, `BALL_W`, `MARGIN` y otras se declaran como `localparam` en `pixel_gen`, `paddle_move`, `ball_move` y `hitbox`. Si se cambia una en un archivo, hay que cambiarla en los demás. Queda pendiente unificarlas (archivo de cabecera o `parameter` desde el top).
 
 ## Cómo reproducir
 
@@ -220,18 +248,27 @@ iverilog -Wall -o sim_ball src/ball_move.v tb/ball_move_tb.v
 vvp sim_ball
 ```
 
-El testbench comprueba el reset (posición y direcciones), que sin `frame_tick` no hay movimiento, tres pasos en diagonal y los cuatro rebotes. Cada pared se prueba con aterrizaje exacto (por ejemplo 12 a 10) y con sobrepaso (11 a 10), y se verifica el cambio de dirección y el cuadro siguiente. Termina con 2000 cuadros comprobando que la pelota nunca sale de `x` 10 a 620 ni de `y` 10 a 460. Para fijar casos usa asignaciones jerárquicas a `uut.ball_x` y `uut.dir_x`, solo como preparación. La salida debe terminar en `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
+El testbench comprueba el reset (posición y direcciones), que sin `frame_tick` no hay movimiento, tres pasos en diagonal, el golpe contra cada paleta y los cuatro rebotes en pared. Las entradas `hit_p1` y `hit_p2` las maneja el propio testbench con registros (no instancia `hitbox`), de modo que solo se prueba `ball_move`. Golpe: con la pelota dentro de la zona (`ball_x` = 29 o 601) se espera el ajuste a 30 o a 600 y el cambio de dirección; con `hit_p1` o `hit_p2` activo pero la pelota alejándose no debe haber rebote ni cambio de `dir_x`. Un caso en que el resultado del golpe coincide con el avance normal (por ejemplo desde 32) no sirve, porque no distingue un módulo con colisión de uno sin ella. Cada pared se prueba con aterrizaje exacto (por ejemplo 12 a 10) y con sobrepaso (11 a 10), y se verifica el cambio de dirección y el cuadro siguiente. En los casos forzados `dir_y` es 0, así que la `y` esperada aumenta 2 por cuadro. Termina con 2000 cuadros comprobando que la pelota nunca sale de `x` 10 a 620 ni de `y` 10 a 460. Para fijar casos usa asignaciones jerárquicas a `uut.ball_x` y `uut.dir_x`, solo como preparación. La salida debe terminar en `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
 
-### 6. Simular el sistema completo (`top_pong`)
+### 6. Simular `hitbox`
 
 ```bash
-iverilog -o sim_top src/vga_sync.v src/paddle_move.v src/pixel_gen.v src/ball_move.v src/top.v tb/top_tb.v
+iverilog -Wall -o sim_hitbox src/hitbox.v tb/hitbox_tb.v
+vvp sim_hitbox
+```
+
+Es combinacional, así que el testbench no necesita reloj. Para cada borde de cada paleta comprueba un píxel dentro y uno fuera (por ejemplo `ball_x` = 20 da golpe y 19 no; `ball_y` = 279 da golpe y 280 no con `p1_y` = 200), y repite el patrón con las dos paletas desplazadas por separado (`p1_y` = 300 con `p2_y` = 200 y al revés), porque si las dos valieran lo mismo no se podría detectar un módulo que lea la `y` de la otra paleta. Un testbench con solo casos que esperan golpe no detecta una zona un píxel más grande. La salida debe terminar en `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
+
+### 7. Simular el sistema completo (`top_pong`)
+
+```bash
+iverilog -o sim_top src/vga_sync.v src/paddle_move.v src/pixel_gen.v src/ball_move.v src/hitbox.v src/top.v tb/top_tb.v
 vvp sim_top
 ```
 
-Hay que listar **todos** los archivos fuente: el top instancia a los demás módulos y, si falta alguno, Icarus responde `Unknown module type`. El testbench comprueba que al soltar el reset las dos paletas valen 200, que mantener `up_p1` mueve solo la paleta 1 cuatro píxeles por cuadro, que `down_p2` mueve solo la paleta 2, que la pelota arranca en (315, 235) y avanza (313, 233), (311, 231), (309, 229) cuadro a cuadro, que `rgb` vale `E73` en la esquina de la pelota (integración `ball_x`, `ball_y` con `pixel_gen`) y que `rgb` vale `000` siempre que `video_on = 0`. Esos chequeos de `rgb` no tienen carrera con el movimiento de la pelota porque esta solo cambia en el blanking, donde `video_on = 0`. Simula unos 50 ms (tres cuadros) y tiene un temporizador de seguridad de 100 ms. Las lecturas se hacen 1 ns después del flanco de reloj, porque `y` se actualiza con asignación no bloqueante en ese flanco.
+Hay que listar **todos** los archivos fuente: el top instancia a los demás módulos y, si falta alguno, Icarus responde `Unknown module type`. El testbench comprueba que al soltar el reset las dos paletas valen 200, que mantener `up_p1` mueve solo la paleta 1 cuatro píxeles por cuadro, que `down_p2` mueve solo la paleta 2, que la pelota arranca en (315, 235) y avanza (313, 233), (311, 231), (309, 229) cuadro a cuadro, que `rgb` vale `E73` en la esquina de la pelota (integración `ball_x`, `ball_y` con `pixel_gen`) y que `rgb` vale `000` siempre que `video_on = 0`. También prueba la integración de la colisión: asigna la pelota en `ball_x` = 31 hacia la izquierda con la paleta 1 en 200, espera que en el siguiente cuadro llegue a 29 y en el otro rebote a 30 con `dir_x` = 0 (si `hitbox` no estuviera conectado en el top, este caso fallaría). Esos chequeos de `rgb` no tienen carrera con el movimiento de la pelota porque esta solo cambia en el blanking, donde `video_on = 0`. Simula unos 84 ms (cinco cuadros) y tiene un temporizador de seguridad de 100 ms: agregar más cuadros exige subir ese límite. Para fijar el estado de la prueba de colisión usa asignaciones jerárquicas normales (`dut.movimiento_pelota.ball_x = 31`), no `force`, porque `force` bloquea las asignaciones del propio módulo y la pelota no se movería. Las lecturas se hacen 1 ns después del flanco de reloj, porque `y` se actualiza con asignación no bloqueante en ese flanco.
 
-### 7. Simular `ir_sync_detector`
+### 8. Simular `ir_sync_detector`
 
 ```bash
 iverilog -o sim_ir src/ir_sync_detector.v tb/tb_ir_sync_detector.v
@@ -241,10 +278,10 @@ gtkwave ondas_detector.vcd
 
 El testbench baja `ir_rx` (como si se pulsara un botón del control) y lo vuelve a subir. En las formas de onda se ve que `ir_sync` es `ir_rx` retrasada dos ciclos de reloj, y que `flanco_bajada` y `flanco_subida` son pulsos de un ciclo. Por ahora el testbench no comprueba nada automáticamente.
 
-### 8. Sintetizar y programar la Basys3
+### 9. Sintetizar y programar la Basys3
 
 1. Crear un proyecto en Vivado para la parte `xc7a35tcpg236-1`.
-2. Agregar todos los archivos de `src/` (menos los del receptor IR mientras no estén en el top) como fuentes y `constraints/Basys3.xdc` como restricciones.
+2. Agregar todos los archivos de `src/` (incluido `hitbox.v`; menos los del receptor IR mientras no estén en el top) como fuentes y `constraints/Basys3.xdc` como restricciones.
 3. Verificar que `top_pong` esté como módulo superior (clic derecho, *Set as Top*).
 4. Ejecutar *Generate Bitstream* y programar la tarjeta desde *Hardware Manager*.
 5. Conectar el monitor al puerto VGA antes de programar.
@@ -267,8 +304,8 @@ En el archivo de Digilent los pines VGA aparecen agrupados rojo, azul, verde, y 
 ### Limitaciones conocidas
 
 - Los botones entran directamente a los registros, sin sincronizar con el reloj ni filtrar rebotes. Para mantenerlos pulsados no afecta, pero queda pendiente agregar una cadena de dos registros (el mismo esquema de `ir_sync_detector` sirve).
-- La pelota rebota en las cuatro paredes pero todavía no choca con las paletas (pasa por detrás de ellas), y no hay marcador ni máquina de estados. El control por IR no está integrado: solo existe `ir_sync_detector`, y aún falta el decodificador NEC.
-- En la tarjeta solo se probó la imagen y las paletas; el movimiento de la pelota está verificado en simulación y falta verlo en el monitor.
+- La pelota rebota contra las paletas y en las cuatro paredes, pero no hay línea de gol, marcador ni máquina de estados: una pelota que falla la paleta rebota en la pared lateral. La velocidad debe ser como máximo `PADDLE_W` para que no atraviese las paletas. El control por IR no está integrado: solo existe `ir_sync_detector`, y aún falta el decodificador NEC.
+- En la tarjeta solo se probó la imagen y las paletas; el movimiento de la pelota y la colisión están verificados en simulación y falta verlos en el monitor.
 
 ## Uso de IA
 
