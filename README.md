@@ -17,13 +17,13 @@ Juego de Pong para dos jugadores que se muestra en un monitor VGA de 640x480 a 6
 - [ ] Decodificación de las teclas de dos controles IR.
 - [ ] Un par de teclas asignado a cada jugador (subir y bajar).
 - [ ] El juego se muestra en una pantalla VGA.
-- [ ] Testbench por cada módulo, con casos límite (hecho para `vga_sync`, `pixel_gen`, `paddle_move` y el módulo superior `top_pong`).
+- [ ] Testbench por cada módulo, con casos límite (hecho para `vga_sync`, `pixel_gen`, `paddle_move`, `ball_move` y el módulo superior `top_pong`).
 
 ## Hardware
 
 - Digilent Basys3 y cable micro-USB.
 - Monitor con entrada VGA y cable VGA.
-- Receptor IR de 38 kHz (VS1838B) conectado a un puerto Pmod: VCC a 3.3 V, GND a GND y OUT a un pin de datos.
+- Receptor IR **TSOP38238** (Vishay, portadora de 38 kHz, recomendado para el protocolo NEC) conectado a un puerto Pmod. Se alimenta con 2.5 a 5.5 V, así que sirve el 3.3 V del Pmod. Su salida es activa en bajo: en reposo vale 1 y baja a 0 mientras detecta la ráfaga de 38 kHz, y por eso `ir_sync_detector` inicia en 1. Pines (TSOP382, visto de frente): 1 = OUT, 2 = GND, 3 = VS (alimentación). Confirmar el orden con la hoja de datos antes de conectarlo.
 - Dos controles remotos IR que usen el protocolo NEC.
 
 ## Software
@@ -46,12 +46,14 @@ Pong_IR/
 │   ├── vga_sync.v      # temporización VGA, tick y frame_tick
 │   ├── pixel_gen.v     # color de cada píxel
 │   ├── paddle_move.v   # movimiento de una paleta
+│   ├── ball_move.v     # movimiento y rebote de la pelota
 │   ├── ir_sync_detector.v  # sincroniza la señal del receptor IR y detecta flancos
 │   └── top.v           # módulo superior (top_pong)
 ├── tb/
 │   ├── vga_sync_tb.v
 │   ├── pixel_gen_tb.v
 │   ├── paddle_move_tb.v
+│   ├── ball_move_tb.v
 │   ├── top_tb.v
 │   └── tb_ir_sync_detector.v
 ├── constraints/
@@ -82,13 +84,14 @@ Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia d
 | Módulo | Archivo | Estado |
 |---|---|---|
 | Sincronía VGA | `src/vga_sync.v` | Hecho, con testbench autoverificable (HSYNC y `frame_tick`) |
-| Generador de píxeles (paletas, pelota, línea central, borde) | `src/pixel_gen.v` | Hecho, con testbench de bordes. Recibe `p1_y` y `p2_y` como entradas. Pendiente: posición de la pelota como entrada |
+| Generador de píxeles (paletas, pelota, línea central, borde) | `src/pixel_gen.v` | Hecho, con testbench de bordes y de prioridades. Recibe `p1_y`, `p2_y`, `ball_x` y `ball_y` como entradas |
 | Movimiento de una paleta | `src/paddle_move.v` | Hecho, con testbench (límites ajustados al borde) |
-| Lógica del juego (pelota, colisiones, puntaje) y FSM | por definir | Pendiente |
+| Movimiento de la pelota | `src/ball_move.v` | Hecho, con testbench (rebotes en las cuatro paredes). Todavía no choca con las paletas |
+| Colisiones con las paletas, puntaje y FSM | por definir | Pendiente |
 | Sincronizador y detector de flancos del receptor IR | `src/ir_sync_detector.v` | Hecho (Jose Miguel Sedano). Su testbench (`tb/tb_ir_sync_detector.v`) solo muestra formas de onda: falta la comprobación automática y los casos límite |
 | Decodificador NEC | por definir | Pendiente |
 | Mapeo de teclas | por definir | Pendiente |
-| Módulo superior (top) | `src/top.v` (módulo `top_pong`) | Hecho, con testbench (`tb/top_tb.v`). Probado en la Basys3 con un monitor VGA: las paletas se mueven con los botones |
+| Módulo superior (top) | `src/top.v` (módulo `top_pong`) | Hecho, con testbench (`tb/top_tb.v`). Probado en la Basys3 con un monitor VGA: las paletas se mueven con los botones (la pelota se agregó después de esa prueba en tarjeta) |
 
 ### Parámetros de `vga_sync` (640x480 a 60 Hz)
 
@@ -101,17 +104,17 @@ Las dos sincronías tienen polaridad negativa (valen 1 en reposo y 0 durante el 
 
 Valores esperados en simulación: `tick` cada 40 ns, línea de 32 µs, pulso de HSYNC de 3.84 µs, pulso de VSYNC de 64 µs y cuadro de 16.8 ms.
 
-**Salida `frame_tick`:** pulso de un ciclo de reloj (10 ns) una vez por cuadro, cuando `tick = 1`, `h_count = 799` y `v_count = 524` (último píxel del cuadro, dentro del blanking vertical). Es el que habilita el movimiento en `paddle_move`. Si no se incluyera `tick` en la condición, el pulso duraría 4 ciclos y la paleta se movería 4 veces por cuadro.
+**Salida `frame_tick`:** pulso de un ciclo de reloj (10 ns) una vez por cuadro, cuando `tick = 1`, `h_count = 799` y `v_count = 524` (último píxel del cuadro, dentro del blanking vertical). Es el que habilita el movimiento en `paddle_move` y en `ball_move`. Si no se incluyera `tick` en la condición, el pulso duraría 4 ciclos y la paleta se movería 4 veces por cuadro.
 
 ### Diseño de `pixel_gen`
 
-El módulo recibe la posición del píxel (`x`, `y`) y `video_on` desde `vga_sync`, y la posición vertical de cada paleta (`p1_y`, `p2_y`, 10 bits) desde `paddle_move`, y devuelve el color de 12 bits (4 por canal, en el orden rojo, verde, azul). Cada objeto es un rectángulo definido por comparaciones, y las medidas están en `localparam` para cambiarlas en un solo lugar.
+El módulo recibe la posición del píxel (`x`, `y`) y `video_on` desde `vga_sync`, la posición vertical de cada paleta (`p1_y`, `p2_y`, 10 bits) desde `paddle_move`, la posición de la pelota (`ball_x`, `ball_y`, 10 bits) desde `ball_move`, y devuelve el color de 12 bits (4 por canal, en el orden rojo, verde, azul). Cada objeto es un rectángulo definido por comparaciones, y las medidas están en `localparam` para cambiarlas en un solo lugar.
 
 | Objeto | Tamaño | Posición inicial | Color (`rgb`) |
 |---|---|---|---|
 | Paleta 1 | 10 x 80 | `x` 20 a 29, centrada en `y` (200 a 279) | `FF3` |
 | Paleta 2 | 10 x 80 | `x` 610 a 619, centrada en `y` (200 a 279) | `F35` |
-| Pelota | 10 x 10 | centrada en la pantalla (`x` 315 a 324, `y` 235 a 244) | `E73` |
+| Pelota | 10 x 10 | arranca centrada (`x` 315 a 324, `y` 235 a 244) y se mueve | `E73` |
 | Línea central | 2 de ancho, discontinua | `x` 319 a 320 | `667` |
 | Borde | 10 de grosor (`BORDER_W`) en los cuatro lados | `x` < 10, `x` >= 630, `y` < 10, `y` >= 470 | `667` |
 | Fondo (zona visible) | | | `102` |
@@ -122,7 +125,7 @@ Decisiones de diseño:
 - **Prioridad de colores** (de mayor a menor): fuera de la zona visible, paletas, pelota, línea central, borde, fondo. Así la pelota se ve por encima de la línea y las paletas por encima del borde.
 - **Negro en el blanking:** fuera de `video_on` la salida es siempre `000`, porque el monitor VGA calibra su nivel de negro en esas zonas.
 - **Línea discontinua:** se obtiene con un bit de la coordenada `y` (tramos de 4 filas). Para que sea simétrica entre arriba y abajo se usa una coordenada "doblada" respecto al centro: `y_fold` vale `y` en la mitad superior y `479 - y` en la inferior.
-- **Posición vertical de las paletas como entrada:** `pixel_gen` es puramente combinacional (no guarda nada ni tiene reset); solo lee `p1_y` y `p2_y`, que llegan de `paddle_move`. La posición `x` de cada paleta sigue siendo constante. La pelota seguirá fija hasta que exista su módulo de movimiento.
+- **Posición vertical de las paletas como entrada:** `pixel_gen` es puramente combinacional (no guarda nada ni tiene reset); solo lee `p1_y` y `p2_y` (que llegan de `paddle_move`) y `ball_x` y `ball_y` (de `ball_move`). Que esas entradas sean registros en otro módulo no vuelve secuencial a `pixel_gen`: él solo las lee. La posición `x` de cada paleta sigue siendo constante.
 - **Borde visible:** el monitor, al pulsar *Auto Adjust*, mide la zona visible buscando los píxeles que no son negros. Como el fondo (`102`) es casi negro, el monitor tomaba las paletas como los extremos de la imagen y las dejaba pegadas a los lados. El borde de `BORDER_W` = 10 píxeles ocupa los extremos de la pantalla para que el monitor detecte la zona completa. Además sirve de pared para los rebotes de la pelota.
 - **Márgenes separados:** `MARGIN` (20) es la distancia de las paletas al borde de la pantalla; `BORDER_W` (10) es el grosor del borde. Así quedan 10 píxeles libres entre cada paleta y la pared.
 
@@ -143,6 +146,27 @@ Decisiones de diseño:
 - **Una actualización por cuadro:** `y` solo cambia cuando `frame_tick` vale 1. Si cambiara en cada ciclo de 100 MHz, la paleta se movería cientos de millones de píxeles por segundo. Actualizar al terminar la zona visible evita además que la imagen se corte a mitad de un cuadro.
 - **Saturación:** la paleta se detiene contra el borde, en 10 y en 390, para no dibujarse sobre las paredes. Al subir se compara `y <= Y_MIN + SPEED` **antes** de restar, porque `y` no tiene signo y `2 - 4` daría 1022 (la paleta saltaría al fondo).
 - **`up` y `down` a la vez:** la paleta no se mueve.
+
+### Diseño de `ball_move`
+
+Mueve la pelota (esquina superior izquierda, `ball_x` y `ball_y`) y la hace rebotar en el borde. Se puede ver como una **recta**: en cada cuadro la posición suma la velocidad (`x += vx`, `y += vy`), y la pendiente es `vy/vx`. Al rebotar contra una pared solo se invierte una dirección y la pendiente se conserva en valor absoluto.
+
+| Parámetro | Valor | Significado |
+|---|---|---|
+| `BALL_SPEED` | 2 | píxeles por cuadro en cada eje (diagonal de 45 grados) |
+| `X_MIN` / `Y_MIN` | 10 | límite izquierdo y superior (`BORDER_W`) |
+| `X_MAX` | 620 | límite derecho (`SCREEN_W - BALL_W - BORDER_W`) |
+| `Y_MAX` | 460 | límite inferior (`SCREEN_H - BALL_H - BORDER_W`) |
+| Posición inicial | (315, 235) | centro de la pantalla |
+
+Decisiones de diseño:
+
+- **Secuencial:** `ball_x`, `ball_y`, `dir_x` y `dir_y` son registros. La dirección es memoria que se necesita para saber hacia dónde sigue la pelota. Por eso el módulo es secuencial y no puede ser solo una ecuación.
+- **Una actualización por cuadro:** solo se mueve con `frame_tick`, en el blanking, igual que las paletas. Así no se ve a medias dentro de un cuadro.
+- **Convención de dirección:** `dir = 0` significa derecha o abajo (se suma) y `dir = 1` izquierda o arriba (se resta). Tras el reset ambas valen 1: la pelota sale hacia arriba y a la izquierda.
+- **Rebote sin resta peligrosa:** se compara `ball_x <= X_MIN + BALL_SPEED` **antes** de restar. Si se restara primero, `ball_x - 2` con `ball_x = 1` daría 1023 (los números de 10 bits no tienen signo) y no se detectaría el rebote. Al rebotar se escribe `X_MIN` (o `X_MAX`, `Y_MIN`, `Y_MAX`) directamente, así que la pelota nunca se sale ni queda dentro de la pared.
+- **Sin túnel:** la velocidad debe ser menor que el tamaño de lo que la detiene. Con 2 píxeles por cuadro y paletas de 10 de ancho no puede atravesarlas sin que se detecte el choque.
+- **Pendiente:** todavía no hay choque con las paletas ni punto cuando la pelota llega a un lado: hoy rebota en las cuatro paredes.
 
 ## Cómo reproducir
 
@@ -178,7 +202,7 @@ iverilog -o sim_pixel src/pixel_gen.v tb/pixel_gen_tb.v
 vvp sim_pixel
 ```
 
-El testbench comprueba el color de píxeles dentro y justo fuera de cada cara de las paletas, la pelota, la línea central (tramos encendido y apagado, arriba y en el espejo inferior) y el borde (esquina exterior y píxel interior), una paleta desplazada al tope superior (`p1_y` = 10) y que `video_on = 0` fuerza negro. La salida debe terminar en `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
+El testbench comprueba el color de píxeles dentro y justo fuera de cada cara de las paletas, la pelota, la línea central (tramos encendido y apagado, arriba y en el espejo inferior) y el borde (esquina exterior y píxel interior), una paleta desplazada al tope superior (`p1_y` = 10) y otra al tope inferior (`p2_y` = 390, donde el píxel justo debajo ya es borde y no fondo), la pelota en las cuatro esquinas permitidas, las prioridades de dibujo (la pelota tapa a la línea central y la paleta 1 tapa a la pelota) y que `video_on = 0` fuerza negro. La salida debe terminar en `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
 
 ### 4. Simular `paddle_move`
 
@@ -189,16 +213,25 @@ vvp sim_paddle
 
 El testbench comprueba el reset, que sin `frame_tick` no hay movimiento, un paso arriba y uno abajo, los dos botones a la vez, ningún botón y la saturación en 10 y en 390. La salida debe terminar en `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
 
-### 5. Simular el sistema completo (`top_pong`)
+### 5. Simular `ball_move`
 
 ```bash
-iverilog -o sim_top src/vga_sync.v src/paddle_move.v src/pixel_gen.v src/top.v tb/top_tb.v
+iverilog -Wall -o sim_ball src/ball_move.v tb/ball_move_tb.v
+vvp sim_ball
+```
+
+El testbench comprueba el reset (posición y direcciones), que sin `frame_tick` no hay movimiento, tres pasos en diagonal y los cuatro rebotes. Cada pared se prueba con aterrizaje exacto (por ejemplo 12 a 10) y con sobrepaso (11 a 10), y se verifica el cambio de dirección y el cuadro siguiente. Termina con 2000 cuadros comprobando que la pelota nunca sale de `x` 10 a 620 ni de `y` 10 a 460. Para fijar casos usa asignaciones jerárquicas a `uut.ball_x` y `uut.dir_x`, solo como preparación. La salida debe terminar en `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
+
+### 6. Simular el sistema completo (`top_pong`)
+
+```bash
+iverilog -o sim_top src/vga_sync.v src/paddle_move.v src/pixel_gen.v src/ball_move.v src/top.v tb/top_tb.v
 vvp sim_top
 ```
 
-Hay que listar **todos** los archivos fuente: el top instancia a los demás módulos y, si falta alguno, Icarus responde `Unknown module type`. El testbench comprueba que al soltar el reset las dos paletas valen 200, que mantener `up_p1` mueve solo la paleta 1 cuatro píxeles por cuadro, que `down_p2` mueve solo la paleta 2, y que `rgb` vale `000` siempre que `video_on = 0`. Simula unos 50 ms (tres cuadros) y tiene un temporizador de seguridad de 100 ms. Las lecturas se hacen 1 ns después del flanco de reloj, porque `y` se actualiza con asignación no bloqueante en ese flanco.
+Hay que listar **todos** los archivos fuente: el top instancia a los demás módulos y, si falta alguno, Icarus responde `Unknown module type`. El testbench comprueba que al soltar el reset las dos paletas valen 200, que mantener `up_p1` mueve solo la paleta 1 cuatro píxeles por cuadro, que `down_p2` mueve solo la paleta 2, que la pelota arranca en (315, 235) y avanza (313, 233), (311, 231), (309, 229) cuadro a cuadro, que `rgb` vale `E73` en la esquina de la pelota (integración `ball_x`, `ball_y` con `pixel_gen`) y que `rgb` vale `000` siempre que `video_on = 0`. Esos chequeos de `rgb` no tienen carrera con el movimiento de la pelota porque esta solo cambia en el blanking, donde `video_on = 0`. Simula unos 50 ms (tres cuadros) y tiene un temporizador de seguridad de 100 ms. Las lecturas se hacen 1 ns después del flanco de reloj, porque `y` se actualiza con asignación no bloqueante en ese flanco.
 
-### 6. Simular `ir_sync_detector`
+### 7. Simular `ir_sync_detector`
 
 ```bash
 iverilog -o sim_ir src/ir_sync_detector.v tb/tb_ir_sync_detector.v
@@ -208,10 +241,10 @@ gtkwave ondas_detector.vcd
 
 El testbench baja `ir_rx` (como si se pulsara un botón del control) y lo vuelve a subir. En las formas de onda se ve que `ir_sync` es `ir_rx` retrasada dos ciclos de reloj, y que `flanco_bajada` y `flanco_subida` son pulsos de un ciclo. Por ahora el testbench no comprueba nada automáticamente.
 
-### 7. Sintetizar y programar la Basys3
+### 8. Sintetizar y programar la Basys3
 
 1. Crear un proyecto en Vivado para la parte `xc7a35tcpg236-1`.
-2. Agregar los cuatro archivos de `src/` como fuentes y `constraints/Basys3.xdc` como restricciones.
+2. Agregar todos los archivos de `src/` (menos los del receptor IR mientras no estén en el top) como fuentes y `constraints/Basys3.xdc` como restricciones.
 3. Verificar que `top_pong` esté como módulo superior (clic derecho, *Set as Top*).
 4. Ejecutar *Generate Bitstream* y programar la tarjeta desde *Hardware Manager*.
 5. Conectar el monitor al puerto VGA antes de programar.
@@ -234,7 +267,8 @@ En el archivo de Digilent los pines VGA aparecen agrupados rojo, azul, verde, y 
 ### Limitaciones conocidas
 
 - Los botones entran directamente a los registros, sin sincronizar con el reloj ni filtrar rebotes. Para mantenerlos pulsados no afecta, pero queda pendiente agregar una cadena de dos registros (el mismo esquema de `ir_sync_detector` sirve).
-- Todavía no hay pelota en movimiento, marcador ni máquina de estados, y el control por IR no está integrado.
+- La pelota rebota en las cuatro paredes pero todavía no choca con las paletas (pasa por detrás de ellas), y no hay marcador ni máquina de estados. El control por IR no está integrado: solo existe `ir_sync_detector`, y aún falta el decodificador NEC.
+- En la tarjeta solo se probó la imagen y las paletas; el movimiento de la pelota está verificado en simulación y falta verlo en el monitor.
 
 ## Uso de IA
 
