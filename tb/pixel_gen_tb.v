@@ -39,9 +39,9 @@ module pixel_gen_tb;
             #10; // Espera para propagacion combinacional
 
             if (rgb === expected_rgb) begin
-                $display("[PASS] %-40s | x:%3d, y:%3d, vid:%b | Salida: %h", test_name, test_x, test_y, test_video, rgb);
+                $display("[PASS] %-45s | x:%3d, y:%3d, vid:%b | Salida: %h", test_name, test_x, test_y, test_video, rgb);
             end else begin
-                $display("[FAIL] %-40s | x:%3d, y:%3d, vid:%b | Salida: %h (Esp: %h)", test_name, test_x, test_y, test_video, rgb, expected_rgb);
+                $display("[FAIL] %-45s | x:%3d, y:%3d, vid:%b | Salida: %h (Esp: %h)", test_name, test_x, test_y, test_video, rgb, expected_rgb);
                 error_count = error_count + 1;
             end
         end
@@ -58,14 +58,14 @@ module pixel_gen_tb;
         check_pixel(10'd20,  10'd200, 1'b0, 12'h000, "Video apagado en P1");
         check_pixel(10'd315, 10'd235, 1'b0, 12'h000, "Video apagado en Pelota");
 
-        // --- 2. Fondo ---
-        check_pixel(10'd0,   10'd0,   1'b1, 12'h102, "Fondo: Esquina Sup-Izq");
+        // --- 2. Fondo y Borde general ---
+        check_pixel(10'd0,   10'd0,   1'b1, 12'h667, "Borde: Esquina Sup-Izq exterior");
+        check_pixel(10'd10,  10'd10,  1'b1, 12'h102, "Fondo: Esquina Sup-Izq interior");
         check_pixel(10'd100, 10'd100, 1'b1, 12'h102, "Fondo: Zona libre");
 
         // --- 3. Paddle 1 (X: 20..29, Y: 200..279) ---
         check_pixel(10'd20,  10'd200, 1'b1, 12'hFF3, "P1: Esquina Sup-Izq");
         check_pixel(10'd29,  10'd279, 1'b1, 12'hFF3, "P1: Esquina Inf-Der");
-        // Casos de borde P1
         check_pixel(10'd19,  10'd240, 1'b1, 12'h102, "P1 Borde: 1px Izquierda (Fondo)");
         check_pixel(10'd30,  10'd240, 1'b1, 12'h102, "P1 Borde: 1px Derecha (Fondo)");
         check_pixel(10'd25,  10'd199, 1'b1, 12'h102, "P1 Borde: 1px Arriba (Fondo)");
@@ -74,7 +74,6 @@ module pixel_gen_tb;
         // --- 4. Paddle 2 (X: 610..619, Y: 200..279) ---
         check_pixel(10'd610, 10'd200, 1'b1, 12'hF35, "P2: Esquina Sup-Izq");
         check_pixel(10'd619, 10'd279, 1'b1, 12'hF35, "P2: Esquina Inf-Der");
-        // Casos de borde P2
         check_pixel(10'd609, 10'd240, 1'b1, 12'h102, "P2 Borde: 1px Izquierda (Fondo)");
         check_pixel(10'd620, 10'd240, 1'b1, 12'h102, "P2 Borde: 1px Derecha (Fondo)");
         check_pixel(10'd615, 10'd199, 1'b1, 12'h102, "P2 Borde: 1px Arriba (Fondo)");
@@ -83,25 +82,23 @@ module pixel_gen_tb;
         // --- 5. Pelota (X: 315..324, Y: 235..244) ---
         check_pixel(10'd315, 10'd235, 1'b1, 12'hE73, "Pelota: Esquina Sup-Izq");
         check_pixel(10'd324, 10'd244, 1'b1, 12'hE73, "Pelota: Esquina Inf-Der");
-        // Casos de borde Pelota
         check_pixel(10'd314, 10'd240, 1'b1, 12'h102, "Pelota Borde: 1px Izq (Fondo)");
         check_pixel(10'd325, 10'd240, 1'b1, 12'h102, "Pelota Borde: 1px Der (Fondo)");
         check_pixel(10'd317, 10'd234, 1'b1, 12'h102, "Pelota Borde: 1px Arr (Fondo)");
         check_pixel(10'd317, 10'd245, 1'b1, 12'h102, "Pelota Borde: 1px Aba (Fondo)");
 
         // --- 6. Linea Central (X: 319..320) ---
-        check_pixel(10'd319, 10'd4,   1'b1, 12'h667, "Linea Central: Tramo ON");
-        check_pixel(10'd319, 10'd0,   1'b1, 12'h102, "Linea Central: Tramo OFF");
-        check_pixel(10'd319, 10'd475, 1'b1, 12'h667, "Linea Central: Espejo Inferior");
-        // Casos de borde Linea Central
-        check_pixel(10'd318, 10'd4,   1'b1, 12'h102, "Linea Borde: 1px Izq (Fondo)");
-        check_pixel(10'd321, 10'd4,   1'b1, 12'h102, "Linea Borde: 1px Der (Fondo)");
+        check_pixel(10'd319, 10'd20,  1'b1, 12'h667, "Linea Central: Tramo ON superior");
+        check_pixel(10'd319, 10'd24,  1'b1, 12'h102, "Linea Central: Tramo OFF superior");
+        check_pixel(10'd319, 10'd459, 1'b1, 12'h667, "Linea Central: Espejo Inferior");
+        check_pixel(10'd318, 10'd20,  1'b1, 12'h102, "Linea Borde: 1px Izq (Fondo)");
+        check_pixel(10'd321, 10'd20,  1'b1, 12'h102, "Linea Borde: 1px Der (Fondo)");
         
-        // --- 7. Casos limite con paleta desplazada (p1_y = 0) ---
-        p1_y = 10'd0;
-        check_pixel(10'd20,  10'd0,   1'b1, 12'hFF3, "P1 Desplazado (Y=0): Esq Sup-Izq");
-        check_pixel(10'd29,  10'd79,  1'b1, 12'hFF3, "P1 Desplazado (Y=0): Esq Inf-Der");
-        check_pixel(10'd25,  10'd80,  1'b1, 12'h102, "P1 Desplazado Borde: 1px Abajo (Fondo)");
+        // --- 7. Casos limite con paleta desplazada (al tope Y_MIN = 10) ---
+        p1_y = 10'd10;
+        check_pixel(10'd20,  10'd10,  1'b1, 12'hFF3, "P1 Desplazado (Y=10): Esq Sup-Izq");
+        check_pixel(10'd29,  10'd89,  1'b1, 12'hFF3, "P1 Desplazado (Y=10): Esq Inf-Der");
+        check_pixel(10'd25,  10'd90,  1'b1, 12'h102, "P1 Desplazado Borde: 1px Abajo (Fondo)");
         check_pixel(10'd19,  10'd40,  1'b1, 12'h102, "P1 Desplazado Borde: 1px Izq (Fondo)");
         check_pixel(10'd30,  10'd40,  1'b1, 12'h102, "P1 Desplazado Borde: 1px Der (Fondo)");
 
