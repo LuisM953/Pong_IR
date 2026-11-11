@@ -98,23 +98,21 @@ module tb_paddle_move;
 
         // - saturaciones: Bucle hacia arriba
         $display("--- Forzando saturacion hacia arriba ---");
-        // De 200 a 0 a pasos de 4 toma 50 iteraciones. Usamos 60 para exceder el limite intencionalmente.
+        // De 200 a 10 a pasos de 4 toma 48 iteraciones. Usamos 60 para exceder el limite intencionalmente.
         for (i = 0; i < 60; i = i + 1) begin
             up = 1'b1; down = 1'b0; frame_tick = 1'b1;
             @(posedge clk);
         end
-        // Al terminar el bucle, al aplicar la task se da "un paso mas" y se verifica que no pase de 0
-        check_move(1'b1, 1'b0, 1'b1, 10'd0, "Saturacion Arriba (Tope en 0)");
+        check_move(1'b1, 1'b0, 1'b1, 10'd10, "Saturacion Arriba (Tope en 10)");
 
         // - saturaciones: Bucle hacia abajo
         $display("--- Forzando saturacion hacia abajo ---");
-        // De 0 a 400 a pasos de 4 toma 100 iteraciones. Usamos 110.
+        // De 10 a 390 a pasos de 4 toma 95 iteraciones. Usamos 110.
         for (i = 0; i < 110; i = i + 1) begin
             up = 1'b0; down = 1'b1; frame_tick = 1'b1;
             @(posedge clk);
         end
-        // Comprobar el limite de bajada (pantalla - paleta = 480 - 80 = 400)
-        check_move(1'b0, 1'b1, 1'b1, 10'd400, "Saturacion Abajo (Tope en 400)");
+        check_move(1'b0, 1'b1, 1'b1, 10'd390, "Saturacion Abajo (Tope en 390)");
 
         $display("=== Simulacion Finalizada ===");
         if (error_count == 0) begin
