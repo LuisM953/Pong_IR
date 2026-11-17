@@ -1,4 +1,14 @@
-module pixel_gen (
+module pixel_gen #(
+    parameter  SCREEN_W      = 640,
+               SCREEN_H      = 480,
+               PADDLE_W      = 10,
+               PADDLE_H      = 80,
+               BALL_W        = 10,
+               BALL_H        = 10,    
+               LINE_W        = 2,
+               MARGIN        = 20,
+               BORDER_W      = 10
+)(
     input  wire [9:0] x,
     input  wire [9:0] y,
     input  wire [9:0] p1_y,
@@ -9,16 +19,7 @@ module pixel_gen (
     output wire [11:0] rgb
 );
 
-localparam  SCREEN_W      = 640,
-            SCREEN_H      = 480,
-            PADDLE_W      = 10,
-            PADDLE_H      = 80,
-            BALL_W        = 10,
-            BALL_H        = 10,    
-            LINE_W        = 2,
-            MARGIN        = 20,
-            BORDER_W      = 10,
-            LINE_INICIO   = (SCREEN_W/2 - LINE_W/2),
+localparam  LINE_INICIO   = (SCREEN_W/2 - LINE_W/2),
             P1_X_INICIO   = MARGIN,
             P2_X_INICIO   = (SCREEN_W - MARGIN - PADDLE_W);
 

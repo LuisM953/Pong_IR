@@ -1,4 +1,13 @@
-module ball_move (
+module ball_move #(
+    parameter  SCREEN_W      = 640,
+               SCREEN_H      = 480,
+               BORDER_W      = 10,
+               PADDLE_W      = 10,
+               BALL_W        = 10,
+               BALL_H        = 10,
+               MARGIN        = 20,
+               BALL_SPEED    = 2
+)(
     input  wire clk,
     input  wire reset,
     input  wire frame_tick,
@@ -10,15 +19,7 @@ module ball_move (
     output reg  [9:0] ball_y   // fila del borde superior de la pelota
 );
 
-localparam  SCREEN_W      = 640,
-            SCREEN_H      = 480,
-            BORDER_W      = 10,
-            PADDLE_W      = 10,
-            BALL_W        = 10,
-            BALL_H        = 10,
-            MARGIN        = 20,
-            BALL_SPEED    = 2,
-            X_MIN         = BORDER_W,
+localparam  X_MIN         = BORDER_W,
             Y_MIN         = BORDER_W,
             X_MAX         = SCREEN_W - BALL_W - BORDER_W,
             Y_MAX         = SCREEN_H - BALL_H - BORDER_W,
