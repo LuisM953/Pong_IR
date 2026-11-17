@@ -10,8 +10,8 @@ module top_pong (
     output wire [11:0] rgb
 );
 
+    wire video_on, frame_tick, hit_p1, hit_p2, goal_p1, goal_p2;
     wire [9:0] x, y, p1_y, p2_y, ball_x, ball_y;
-    wire video_on, frame_tick, hit_p1, hit_p2;
 
     vga_sync controlador_vga (
         .clk(clk),
@@ -61,7 +61,9 @@ module top_pong (
         .hit_p1(hit_p1),
         .hit_p2(hit_p2),
         .ball_x(ball_x),
-        .ball_y(ball_y)
+        .ball_y(ball_y),
+        .goal_p1(goal_p1),
+        .goal_p2(goal_p2)
     );
 
     hitbox detector_colisiones (
