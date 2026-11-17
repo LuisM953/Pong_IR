@@ -19,10 +19,12 @@ module top_pong (
                 MARGIN        = 20,
                 BORDER_W      = 10,
                 PADDLE_SPEED  = 4,
-                BALL_SPEED    = 2;
+                BALL_SPEED    = 2,
+                MAX_SCORE     = 11; //MAXIMO 15, por el ancho de 4 bits de los contadores de score
 
-    wire video_on, frame_tick, hit_p1, hit_p2, goal_p1, goal_p2;
+    wire video_on, frame_tick, hit_p1, hit_p2, goal_p1, goal_p2, win_p1, win_p2;
     wire [9:0] x, y, p1_y, p2_y, ball_x, ball_y;
+    wire [3:0] score_p1, score_p2;
 
     vga_sync controlador_vga (
         .clk(clk),
@@ -120,6 +122,20 @@ module top_pong (
         .ball_y(ball_y),
         .hit_p1(hit_p1),
         .hit_p2(hit_p2)
+    );
+
+    score #(
+        .MAX_SCORE(MAX_SCORE)
+    ) marcador (
+        .clk(clk),
+        .reset(reset),
+        .clear(1'b0),
+        .goal_p1(goal_p1),
+        .goal_p2(goal_p2),
+        .win_p1(win_p1),
+        .win_p2(win_p2),
+        .score_p1(score_p1),
+        .score_p2(score_p2)
     );
 
 endmodule

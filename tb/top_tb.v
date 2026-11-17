@@ -29,7 +29,7 @@ module top_pong_tb;
 
     always #5 clk = ~clk;
 
-    // MODIFICADO: 1. Temporizador de seguridad ampliado a 300 ms para dar margen amplio a los 7 cuadros completos
+    // 1. Temporizador de seguridad ampliado a 300 ms para dar margen amplio a los 7 cuadros completos
     initial begin
         #300000000; // 300 ms en nanosegundos
         $display("[FAIL] TIMEOUT: La simulacion tardo mas de 300 ms. Revisa frame_tick.");
@@ -46,7 +46,7 @@ module top_pong_tb;
                     error_count = error_count + 1;
                 end
             end 
-            // MODIFICADO: Integracion RGB Pelota (esquina superior izq)
+            // Integracion RGB Pelota (esquina superior izq)
             else if (dut.x == dut.ball_x && dut.y == dut.ball_y) begin 
                 if (rgb !== 12'hE73) begin
                     $display("[FAIL] Integracion Pelota: rgb = %h (Esperado: E73) en x:%0d, y:%0d", rgb, dut.x, dut.y);
@@ -70,12 +70,14 @@ module top_pong_tb;
         #10;
         
         // Comprobar que al soltar el reset las paletas valen 200 y la pelota esta en el centro (315, 235)
-        // MODIFICADO: Verificar tambien que las señales internas goal_p1 y goal_p2 arranquen en 0
-        if (dut.p1_y === 10'd200 && dut.p2_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235 && dut.goal_p1 === 1'b0 && dut.goal_p2 === 1'b0) begin
-            $display("[PASS] Reset: p1_y = 200, p2_y = 200, pelota = (315, 235), goles = 0");
+        // MODIFICADO: Verificar tambien marcador inicial 0-0 y banderas de victoria en 0
+        if (dut.p1_y === 10'd200 && dut.p2_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235 &&
+            dut.goal_p1 === 1'b0 && dut.goal_p2 === 1'b0 &&
+            dut.score_p1 === 4'd0 && dut.score_p2 === 4'd0 && dut.win_p1 === 1'b0 && dut.win_p2 === 1'b0) begin
+            $display("[PASS] Reset: p1_y = 200, p2_y = 200, pelota = (315, 235), score = 0-0, win = 0");
         end else begin
-            $display("[FAIL] Reset: p1_y = %0d, p2_y = %0d, pelota = (%0d, %0d), g1 = %b, g2 = %b (Esperado: 200, 200, 315, 235, 0, 0)", 
-                     dut.p1_y, dut.p2_y, dut.ball_x, dut.ball_y, dut.goal_p1, dut.goal_p2);
+            $display("[FAIL] Reset: p1_y = %0d, p2_y = %0d, pelota = (%0d, %0d), score = %0d-%0d, win = %b-%b", 
+                     dut.p1_y, dut.p2_y, dut.ball_x, dut.ball_y, dut.score_p1, dut.score_p2, dut.win_p1, dut.win_p2);
             error_count = error_count + 1;
         end
 
@@ -133,7 +135,7 @@ module top_pong_tb;
         
         down_p2 = 0; 
 
-        // MODIFICADO: Prueba 4: Integración Hitbox en Top (Rebote cruzando la paleta 1 en 2 pasos) ---
+        // Prueba 4: Integración Hitbox en Top (Rebote cruzando la paleta 1 en 2 pasos) ---
         $display("--- Probando integracion de Hitbox en Top ---");
         
         // Posición previa al flanco en x = 31
@@ -166,8 +168,8 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // --- MODIFICADO: Prueba 5: Integracion de Goles y Reinicio al Centro en Top ---
-        $display("--- Probando integracion de Goles y Reinicio al Centro en Top ---");
+        // --- MODIFICADO: Prueba 5: Integracion de Goles, Reinicio y Marcador (Score) en Top ---
+        $display("--- Probando integracion de Goles, Reinicio y Score en Top ---");
 
         // Caso 5A: Gol en pared izquierda (esquivando paleta 1, ball_x = 12, dir_x = 1 -> goal_p2 = 1 y centro)
         dut.movimiento_pelota.ball_x = 10'd12;
@@ -188,12 +190,15 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // Comprobar que el pulso goal_p2 se limpia en el siguiente ciclo de reloj
+        // MODIFICADO: Comprobar limpieza del pulso goal_p2 e incremento de score_p2 a 1 (marcador 0-1)
         @(posedge clk);
         #1;
-        if (dut.goal_p2 !== 1'b0) begin
-            $display("[FAIL] Integracion Gol P2: Pulso goal_p2 no se limpio en el siguiente ciclo");
+        if (dut.goal_p2 !== 1'b0 || dut.score_p1 !== 4'd0 || dut.score_p2 !== 4'd1) begin
+            $display("[FAIL] Integracion Score P2: goal_p2 = %b (Esp:0), score = %0d-%0d (Esp: 0-1)",
+                     dut.goal_p2, dut.score_p1, dut.score_p2);
             error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Integracion Score P2: Pulso limpio y marcador actualizado a 0-1");
         end
 
         // Caso 5B: Gol en pared derecha (esquivando paleta 2, ball_x = 618, dir_x = 0 -> goal_p1 = 1 y centro)
@@ -215,12 +220,15 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // Comprobar que el pulso goal_p1 se limpia en el siguiente ciclo de reloj
+        // MODIFICADO: Comprobar limpieza del pulso goal_p1 e incremento de score_p1 a 1 (marcador 1-1)
         @(posedge clk);
         #1;
-        if (dut.goal_p1 !== 1'b0) begin
-            $display("[FAIL] Integracion Gol P1: Pulso goal_p1 no se limpio en el siguiente ciclo");
+        if (dut.goal_p1 !== 1'b0 || dut.score_p1 !== 4'd1 || dut.score_p2 !== 4'd1) begin
+            $display("[FAIL] Integracion Score P1: goal_p1 = %b (Esp:0), score = %0d-%0d (Esp: 1-1)",
+                     dut.goal_p1, dut.score_p1, dut.score_p2);
             error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Integracion Score P1: Pulso limpio y marcador actualizado a 1-1");
         end
 
         $display("=== Simulacion Finalizada ===");
