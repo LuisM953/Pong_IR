@@ -12,10 +12,10 @@ module ir_decoder (
 );
 
     // codigos NEC tipicos (ajustables segun tu control remoto)
-    localparam CMD_P1_UP   = 8'h18; // ej. flecha arriba
-    localparam CMD_P1_DOWN = 8'h52; // ej. flecha abajo
-    localparam CMD_P2_UP   = 8'h0C; // ej. tecla 1
-    localparam CMD_P2_DOWN = 8'h42; // ej. tecla 7
+    localparam CMD_P1_UP   = 8'h18, // ej. flecha arriba
+               CMD_P1_DOWN = 8'h52, // ej. flecha abajo
+               CMD_P2_UP   = 8'h0C, // ej. tecla 1
+               CMD_P2_DOWN = 8'h42; // ej. tecla 7
 
     // cables de interconexion interna
     wire ir_sync;
@@ -38,7 +38,7 @@ module ir_decoder (
     );
 
     // 2. Contador de tiempo de 20 bits
-    contador_tiempo u_timer (
+    ir_contador_tiempo u_timer (
         .clk(clk),
         .reset(reset),
         .flanco_bajada(flanco_bajada),

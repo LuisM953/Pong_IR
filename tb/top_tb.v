@@ -2,21 +2,29 @@
 
 module top_pong_tb;
 
+    // MODIFICADO: Codigos NEC para prueba valida (P1_UP) y prueba negativa corrupta (P2_DOWN)
+    localparam [7:0] NEC_ADDR    = 8'h00,
+                     CMD_P1_UP   = 8'h18,
+                     CMD_P2_DOWN = 8'h42;
+
     reg clk;
     reg reset;
     reg up_p1;
     reg down_p1;
     reg up_p2;
     reg down_p2;
+    reg ir_rx;
 
     wire hsync;
     wire vsync;
+    wire [7:0] comando_actual;
     wire [11:0] rgb;
 
     integer error_count = 0;
+    reg [9:0] p1_y_prev, p2_y_prev; // MODIFICADO: Captura de posicion previa para caso negativo IR
 
     top_pong #(
-        .CALIB_FRAMES(0) // MODIFICADO: Omitir calibracion inicial para simular el juego directamente
+        .CALIB_FRAMES(0) // Omitir calibracion inicial para simular el juego directamente
     ) dut (
         .clk(clk),
         .reset(reset),
@@ -24,19 +32,84 @@ module top_pong_tb;
         .down_p1(down_p1),
         .up_p2(up_p2),
         .down_p2(down_p2),
+        .ir_rx(ir_rx),
         .hsync(hsync),
         .vsync(vsync),
+        .comando_actual(comando_actual),
         .rgb(rgb)
     );
 
     always #5 clk = ~clk;
 
-    // 1. Temporizador de seguridad ampliado a 300 ms para dar margen amplio a los 7 cuadros completos
+    // MODIFICADO: Temporizador de seguridad ampliado a 600 ms para cubrir trama NEC valida (~68 ms) + corrupta (~68 ms)
     initial begin
-        #300000000; // 300 ms en nanosegundos
-        $display("[FAIL] TIMEOUT: La simulacion tardo mas de 300 ms. Revisa frame_tick.");
+        #600000000; // 600 ms en nanosegundos
+        $display("[FAIL] TIMEOUT: La simulacion tardo mas de 600 ms. Revisa frame_tick o ir_decoder.");
         $finish;
     end
+
+    // Tarea para enviar una trama NEC real de 32 bits por ir_rx
+    task enviar_trama_nec;
+        input [7:0] addr;
+        input [7:0] cmd;
+        reg [31:0] trama;
+        integer idx;
+        begin
+            trama = {~cmd, cmd, ~addr, addr}; // Orden NEC estandar (LSB primero)
+
+            // Pulso inicial AGC (9 ms en bajo) + espacio (4.5 ms en alto)
+            ir_rx = 1'b0;
+            #9000000;
+            ir_rx = 1'b1;
+            #4500000;
+
+            // Transmision de los 32 bits
+            for (idx = 0; idx < 32; idx = idx + 1) begin
+                ir_rx = 1'b0;
+                #562500; // Pulso fijo de 562.5 us
+                ir_rx = 1'b1;
+                if (trama[idx])
+                    #1687500; // Bit 1: 1.6875 ms en alto
+                else
+                    #562500;  // Bit 0: 562.5 us en alto
+            end
+
+            // Pulso de parada final (562.5 us en bajo) y retorno a reposo
+            ir_rx = 1'b0;
+            #562500;
+            ir_rx = 1'b1;
+        end
+    endtask
+
+    // MODIFICADO: Tarea para enviar una trama NEC corrupta (~cmd alterado) que debe ser rechazada
+    task enviar_trama_nec_corrupta;
+        input [7:0] addr;
+        input [7:0] cmd;
+        reg [31:0] trama;
+        integer idx;
+        begin
+            trama = {cmd, cmd, ~addr, addr}; // Byte ~cmd corrupto (no es complemento de cmd)
+
+            ir_rx = 1'b0;
+            #9000000;
+            ir_rx = 1'b1;
+            #4500000;
+
+            for (idx = 0; idx < 32; idx = idx + 1) begin
+                ir_rx = 1'b0;
+                #562500;
+                ir_rx = 1'b1;
+                if (trama[idx])
+                    #1687500;
+                else
+                    #562500;
+            end
+
+            ir_rx = 1'b0;
+            #562500;
+            ir_rx = 1'b1;
+        end
+    endtask
 
     // Comprobacion continua de Salida de Video (Blanking)
     always @(posedge clk) begin
@@ -64,6 +137,7 @@ module top_pong_tb;
         clk = 0;
         up_p1 = 0; down_p1 = 0;
         up_p2 = 0; down_p2 = 0;
+        ir_rx = 1'b1; // Linea IR en reposo (activo en bajo)
         
         // --- Prueba 1: Comprobacion del Reset ---
         reset = 1;
@@ -72,11 +146,12 @@ module top_pong_tb;
         #10;
         
         // Comprobar que al soltar el reset las paletas valen 200 y la pelota esta en el centro (315, 235)
-        // Verificar tambien marcador inicial 0-0 y banderas de victoria en 0
+        // Verificar tambien marcador inicial 0-0, banderas de victoria en 0 y salidas IR en reposo
         if (dut.p1_y === 10'd200 && dut.p2_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235 &&
             dut.goal_p1 === 1'b0 && dut.goal_p2 === 1'b0 &&
-            dut.score_p1 === 4'd0 && dut.score_p2 === 4'd0 && dut.win_p1 === 1'b0 && dut.win_p2 === 1'b0) begin
-            $display("[PASS] Reset: p1_y = 200, p2_y = 200, pelota = (315, 235), score = 0-0, win = 0");
+            dut.score_p1 === 4'd0 && dut.score_p2 === 4'd0 && dut.win_p1 === 1'b0 && dut.win_p2 === 1'b0 &&
+            dut.ir_p1_up === 1'b0 && dut.ir_p1_down === 1'b0 && dut.ir_p2_up === 1'b0 && dut.ir_p2_down === 1'b0) begin
+            $display("[PASS] Reset: p1_y = 200, p2_y = 200, pelota = (315, 235), score = 0-0, win = 0, IR = 0");
         end else begin
             $display("[FAIL] Reset: p1_y = %0d, p2_y = %0d, pelota = (%0d, %0d), score = %0d-%0d, win = %b-%b", 
                      dut.p1_y, dut.p2_y, dut.ball_x, dut.ball_y, dut.score_p1, dut.score_p2, dut.win_p1, dut.win_p2);
@@ -203,7 +278,7 @@ module top_pong_tb;
             $display("[PASS] Integracion Score P2: Pulso limpio y marcador actualizado a 0-1");
         end
 
-        // MODIFICADO: Verificar integracion RGB del marcador en pantalla (0-1 -> P1 caja 0 apagada, P2 caja 0 encendida)
+        // Verificar integracion RGB del marcador en pantalla (0-1 -> P1 caja 0 apagada, P2 caja 0 encendida)
         wait (dut.x == 10'd309 && dut.y == 10'd4);
         #1;
         if (rgb !== 12'h213) begin
@@ -252,7 +327,7 @@ module top_pong_tb;
             $display("[PASS] Integracion Score P1: Pulso limpio y marcador actualizado a 1-1");
         end
 
-        // MODIFICADO: Verificar integracion RGB del marcador en pantalla (1-1 -> P1 caja 0 encendida en amarillo)
+        // Verificar integracion RGB del marcador en pantalla (1-1 -> P1 caja 0 encendida en amarillo)
         wait (dut.x == 10'd309 && dut.y == 10'd4);
         #1;
         if (rgb !== 12'hFF3) begin
@@ -260,6 +335,46 @@ module top_pong_tb;
             error_count = error_count + 1;
         end else begin
             $display("[PASS] Integracion RGB Score P1 (1-1): Caja 0 encendida (FF3)");
+        end
+
+        // --- Prueba 6: Integracion Control IR de punta a punta (ir_rx -> ir_decoder -> paddle1) ---
+        $display("--- Probando integracion de Control IR por ir_rx en Top ---");
+
+        // Ambas paletas parten en y = 300 tras la Prueba 5; botones fisicos en 0
+        enviar_trama_nec(NEC_ADDR, CMD_P1_UP);
+
+        // Esperar el siguiente frame_tick tras finalizar la trama para asegurar el desplazamiento de paddle1
+        @(posedge dut.frame_tick);
+        @(posedge clk);
+        #1;
+
+        // MODIFICADO: Verificacion estricta de p1_y === 296 y sin cruce en p2_y === 300
+        if (comando_actual === CMD_P1_UP && dut.p1_y === 10'd296 && dut.p2_y === 10'd300) begin
+            $display("[PASS] Integracion IR (Valida): cmd = %h, p1_y = 296, p2_y = 300 (sin cruce)", comando_actual);
+        end else begin
+            $display("[FAIL] Integracion IR (Valida): cmd = %h (Esp: %h), p1_y = %0d (Esp: 296), p2_y = %0d (Esp: 300)",
+                     comando_actual, CMD_P1_UP, dut.p1_y, dut.p2_y);
+            error_count = error_count + 1;
+        end
+
+        // MODIFICADO: Caso 6B (Negativo) -> Esperar fin de retencion del pulso previo y enviar trama NEC corrupta
+        wait (dut.ir_p1_up === 1'b0);
+        p1_y_prev = dut.p1_y;
+        p2_y_prev = dut.p2_y;
+
+        enviar_trama_nec_corrupta(NEC_ADDR, CMD_P2_DOWN);
+
+        @(posedge dut.frame_tick);
+        @(posedge clk);
+        #1;
+
+        if (dut.p1_y === p1_y_prev && dut.p2_y === p2_y_prev && comando_actual !== CMD_P2_DOWN) begin
+            $display("[PASS] Integracion IR (Corrupta): Trama rechazada, paletas inmoviles en p1_y = %0d, p2_y = %0d",
+                     dut.p1_y, dut.p2_y);
+        end else begin
+            $display("[FAIL] Integracion IR (Corrupta): p1_y = %0d (Esp: %0d), p2_y = %0d (Esp: %0d), cmd = %h",
+                     dut.p1_y, p1_y_prev, dut.p2_y, p2_y_prev, comando_actual);
+            error_count = error_count + 1;
         end
 
         $display("=== Simulacion Finalizada ===");
