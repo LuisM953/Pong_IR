@@ -15,7 +15,9 @@ module top_pong_tb;
 
     integer error_count = 0;
 
-    top_pong dut (
+    top_pong #(
+        .CALIB_FRAMES(0) // MODIFICADO: Omitir calibracion inicial para simular el juego directamente
+    ) dut (
         .clk(clk),
         .reset(reset),
         .up_p1(up_p1),
@@ -70,7 +72,7 @@ module top_pong_tb;
         #10;
         
         // Comprobar que al soltar el reset las paletas valen 200 y la pelota esta en el centro (315, 235)
-        // MODIFICADO: Verificar tambien marcador inicial 0-0 y banderas de victoria en 0
+        // Verificar tambien marcador inicial 0-0 y banderas de victoria en 0
         if (dut.p1_y === 10'd200 && dut.p2_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235 &&
             dut.goal_p1 === 1'b0 && dut.goal_p2 === 1'b0 &&
             dut.score_p1 === 4'd0 && dut.score_p2 === 4'd0 && dut.win_p1 === 1'b0 && dut.win_p2 === 1'b0) begin
@@ -168,7 +170,7 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // --- MODIFICADO: Prueba 5: Integracion de Goles, Reinicio y Marcador (Score) en Top ---
+        // --- Prueba 5: Integracion de Goles, Reinicio y Marcador (Score) en Top ---
         $display("--- Probando integracion de Goles, Reinicio y Score en Top ---");
 
         // Caso 5A: Gol en pared izquierda (esquivando paleta 1, ball_x = 12, dir_x = 1 -> goal_p2 = 1 y centro)
@@ -190,7 +192,7 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // MODIFICADO: Comprobar limpieza del pulso goal_p2 e incremento de score_p2 a 1 (marcador 0-1)
+        // Comprobar limpieza del pulso goal_p2 e incremento de score_p2 a 1 (marcador 0-1)
         @(posedge clk);
         #1;
         if (dut.goal_p2 !== 1'b0 || dut.score_p1 !== 4'd0 || dut.score_p2 !== 4'd1) begin
@@ -199,6 +201,25 @@ module top_pong_tb;
             error_count = error_count + 1;
         end else begin
             $display("[PASS] Integracion Score P2: Pulso limpio y marcador actualizado a 0-1");
+        end
+
+        // MODIFICADO: Verificar integracion RGB del marcador en pantalla (0-1 -> P1 caja 0 apagada, P2 caja 0 encendida)
+        wait (dut.x == 10'd309 && dut.y == 10'd4);
+        #1;
+        if (rgb !== 12'h213) begin
+            $display("[FAIL] Integracion RGB Score P1 (0-1): rgb = %h (Esp: 213) en (309, 4)", rgb);
+            error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Integracion RGB Score P1 (0-1): Caja 0 apagada (213)");
+        end
+
+        wait (dut.x == 10'd330 && dut.y == 10'd4);
+        #1;
+        if (rgb !== 12'hF35) begin
+            $display("[FAIL] Integracion RGB Score P2 (0-1): rgb = %h (Esp: F35) en (330, 4)", rgb);
+            error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Integracion RGB Score P2 (0-1): Caja 0 encendida (F35)");
         end
 
         // Caso 5B: Gol en pared derecha (esquivando paleta 2, ball_x = 618, dir_x = 0 -> goal_p1 = 1 y centro)
@@ -220,7 +241,7 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // MODIFICADO: Comprobar limpieza del pulso goal_p1 e incremento de score_p1 a 1 (marcador 1-1)
+        // Comprobar limpieza del pulso goal_p1 e incremento de score_p1 a 1 (marcador 1-1)
         @(posedge clk);
         #1;
         if (dut.goal_p1 !== 1'b0 || dut.score_p1 !== 4'd1 || dut.score_p2 !== 4'd1) begin
@@ -229,6 +250,16 @@ module top_pong_tb;
             error_count = error_count + 1;
         end else begin
             $display("[PASS] Integracion Score P1: Pulso limpio y marcador actualizado a 1-1");
+        end
+
+        // MODIFICADO: Verificar integracion RGB del marcador en pantalla (1-1 -> P1 caja 0 encendida en amarillo)
+        wait (dut.x == 10'd309 && dut.y == 10'd4);
+        #1;
+        if (rgb !== 12'hFF3) begin
+            $display("[FAIL] Integracion RGB Score P1 (1-1): rgb = %h (Esp: FF3) en (309, 4)", rgb);
+            error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Integracion RGB Score P1 (1-1): Caja 0 encendida (FF3)");
         end
 
         $display("=== Simulacion Finalizada ===");

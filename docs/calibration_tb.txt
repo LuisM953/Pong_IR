@@ -1,0 +1,3 @@
+VCD info: dumpfile calibration_tb.vcd opened for output.
+calibration_tb: TODAS LAS PRUEBAS PASARON
+tb/calibration_tb.v:136: $finish called at 5930000 (1ps)

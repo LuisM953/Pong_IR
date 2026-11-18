@@ -1,4 +1,8 @@
-module top_pong (
+module top_pong #(
+    // Cuadros de la pantalla de calibracion (180 = ~3 s a ~60 Hz).
+    // En simulacion: top_pong #(.CALIB_FRAMES(0)) para ir directo al juego.
+    parameter CALIB_FRAMES = 180
+)(
     input  wire clk,
     input  wire reset,
     input  wire up_p1,
@@ -20,7 +24,9 @@ module top_pong (
                 BORDER_W      = 10,
                 PADDLE_SPEED  = 4,
                 BALL_SPEED    = 2,
-                MAX_SCORE     = 11; //MAXIMO 15, por el ancho de 4 bits de los contadores de score
+                MAX_SCORE     = 11, //MAXIMO 15, por el ancho de 4 bits de los contadores de score
+                BOX_SIZE      = 6,
+                BOX_MARGIN    = 2;  // Restriccion -> BOX_SIZE + BOX_MARGIN (BOX_STEP) debe ser potencia de 2 (ej. 4, 8, 16)
 
     wire video_on, frame_tick, hit_p1, hit_p2, goal_p1, goal_p2, win_p1, win_p2;
     wire [9:0] x, y, p1_y, p2_y, ball_x, ball_y;
@@ -36,6 +42,22 @@ module top_pong (
         .y(y),
         .frame_tick(frame_tick),
         .tick()
+    );
+
+    // pixel_gen entrega rgb_juego; calibracion decide que sale por rgb
+    // (pantalla blanca de calibracion al inicio, luego el juego).
+    wire [11:0] rgb_juego;
+
+    calibration #(
+        .CALIB_FRAMES(CALIB_FRAMES)
+    ) calibracion (
+        .clk(clk),
+        .reset(reset),
+        .frame_tick(frame_tick),
+        .video_on(video_on),
+        .rgb_juego(rgb_juego),
+        .calibrando(),
+        .rgb(rgb)
     );
 
     paddle_move #(
@@ -75,7 +97,10 @@ module top_pong (
         .BALL_H(BALL_H),
         .LINE_W(LINE_W),
         .MARGIN(MARGIN),
-        .BORDER_W(BORDER_W)
+        .BORDER_W(BORDER_W),
+        .MAX_SCORE(MAX_SCORE),
+        .BOX_SIZE(BOX_SIZE),
+        .BOX_MARGIN(BOX_MARGIN)
     ) generador_imagen (
         .x(x),
         .y(y),
@@ -84,7 +109,9 @@ module top_pong (
         .p2_y(p2_y),
         .ball_x(ball_x),
         .ball_y(ball_y),
-        .rgb(rgb)
+        .score_p1(score_p1),
+        .score_p2(score_p2),
+        .rgb(rgb_juego)
     );
 
     ball_move #(
