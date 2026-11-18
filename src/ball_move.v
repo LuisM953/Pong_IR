@@ -13,6 +13,7 @@ module ball_move #(
     input  wire frame_tick,
     input  wire hit_p1,
     input  wire hit_p2,
+    input  wire game_enable,   // habilita el movimiento de la pelota/paletas
     output reg  goal_p1,       // 1 cuando la pelota llega a la pared derecha
     output reg  goal_p2,       // 1 cuando la pelota llega a la pared izquierda
     output reg  [9:0] ball_x,  // columna del borde izquierdo de la pelota
@@ -41,7 +42,7 @@ always @(posedge clk) begin
         ball_y <= BALL_Y_INICIO;
         dir_x <= 1; // direccion inicial: izquierda
         dir_y <= 1; // direccion inicial: arriba
-    end else if (frame_tick) begin
+    end else if (frame_tick && game_enable) begin
         if (dir_x == 1) begin //izquierda
             if (hit_p1) begin
                 ball_x <= P1_X + PADDLE_W; // reposicionar pelota a la derecha de la paleta

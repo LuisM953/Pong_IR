@@ -7,6 +7,7 @@ module paddle_move #(
     input  wire clk,
     input  wire reset,
     input  wire frame_tick,   // un pulso por cuadro (60 Hz)
+    input  wire game_enable,  // habilita el movimiento de la pelota/paletas
     input  wire up,
     input  wire down,
     output reg  [9:0] y       // borde superior de la paleta
@@ -19,7 +20,7 @@ localparam  Y_MIN    = BORDER_W,
 always @(posedge clk) begin
     if (reset) begin
         y <= Y_INIT;
-    end else if (frame_tick) begin
+    end else if (frame_tick && game_enable) begin
         if (up && !down) begin
             if (y <= Y_MIN + SPEED) begin
                 y <= Y_MIN;

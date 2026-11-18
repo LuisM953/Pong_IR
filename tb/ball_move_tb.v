@@ -6,12 +6,13 @@ module tb_ball_move;
     reg clk;
     reg reset;
     reg frame_tick;
+    reg game_enable; // MODIFICADO: Entrada de habilitacion del juego (FSM)
     
     // Estímulos independientes para aislar ball_move
     reg hit_p1_reg;
     reg hit_p2_reg;
 
-    // MODIFICADO: Cables de salida para monitorear los goles
+    // Cables de salida para monitorear los goles
     wire goal_p1;
     wire goal_p2;
 
@@ -21,7 +22,7 @@ module tb_ball_move;
     integer error_count = 0;
     integer i;
 
-    // MODIFICADO: Variables para contar goles y detectar pulsos consecutivos en el bucle largo
+    // Variables para contar goles y detectar pulsos consecutivos en el bucle largo
     integer count_goal_p1 = 0;
     integer count_goal_p2 = 0;
     reg prev_goal_p1 = 0;
@@ -34,8 +35,9 @@ module tb_ball_move;
         .frame_tick(frame_tick),
         .hit_p1(hit_p1_reg),
         .hit_p2(hit_p2_reg),
-        .goal_p1(goal_p1), // MODIFICADO: Conexion de salida gol jugador 1
-        .goal_p2(goal_p2), // MODIFICADO: Conexion de salida gol jugador 2
+        .game_enable(game_enable), // MODIFICADO: Conexion de game_enable
+        .goal_p1(goal_p1), // Conexion de salida gol jugador 1
+        .goal_p2(goal_p2), // Conexion de salida gol jugador 2
         .ball_x(ball_x),
         .ball_y(ball_y)
     );
@@ -56,12 +58,12 @@ module tb_ball_move;
             #1; // Lectura 1 ns despues del flanco para evitar condiciones de carrera
 
             if (ball_x !== expected_x || ball_y !== expected_y) begin
-                $display("[FAIL] %-45s | tick:%b | (x,y): (%0d,%0d) - Esperado: (%0d,%0d)", 
-                         test_name, frame_tick, ball_x, ball_y, expected_x, expected_y);
+                $display("[FAIL] %-45s | en:%b tick:%b | (x,y): (%0d,%0d) - Esperado: (%0d,%0d)", 
+                         test_name, game_enable, frame_tick, ball_x, ball_y, expected_x, expected_y);
                 error_count = error_count + 1;
             end else begin
-                $display("[PASS] %-45s | tick:%b | (x,y): (%0d,%0d)", 
-                         test_name, frame_tick, ball_x, ball_y);
+                $display("[PASS] %-45s | en:%b tick:%b | (x,y): (%0d,%0d)", 
+                         test_name, game_enable, frame_tick, ball_x, ball_y);
             end
         end
     endtask
@@ -71,6 +73,7 @@ module tb_ball_move;
 
         clk = 0;
         frame_tick = 0;
+        game_enable = 0; // MODIFICADO: Inicia deshabilitado (estado REPOSO de la FSM)
         hit_p1_reg = 0;
         hit_p2_reg = 0;
 
@@ -82,7 +85,7 @@ module tb_ball_move;
         reset = 0;
         #10;
 
-        // MODIFICADO: Verificar tambien que las señales de gol inicien en 0
+        // Verificar tambien que las señales de gol inicien en 0
         if (ball_x !== 10'd315 || ball_y !== 10'd235 || uut.dir_x !== 1'b1 || uut.dir_y !== 1'b1 || goal_p1 !== 1'b0 || goal_p2 !== 1'b0) begin
             $display("[FAIL] Reset inicial | (x,y): (%0d,%0d), dir_x:%b, dir_y:%b, g1:%b, g2:%b",
                      ball_x, ball_y, uut.dir_x, uut.dir_y, goal_p1, goal_p2);
@@ -90,6 +93,26 @@ module tb_ball_move;
         end else begin
             $display("[PASS] Reset inicial | (x,y): (315,235), dir_x:1, dir_y:1, goles:0");
         end
+
+        // -------------------------------------------------------------
+        // MODIFICADO: 1b. Bloqueo con game_enable = 0 (aun con frame_tick = 1)
+        // -------------------------------------------------------------
+        check_ball(1'b1, 10'd315, 10'd235, "Con frame_tick pero game_enable=0");
+
+        // Verificar que estando junto a la pared izquierda no anote gol ni reinicie si game_enable = 0
+        frame_tick = 0; #10;
+        uut.ball_x = 10'd12; uut.ball_y = 10'd200; uut.dir_x = 1'b1; uut.dir_y = 1'b0;
+        #10;
+        check_ball(1'b1, 10'd12, 10'd200, "Zona de gol bloqueada con game_enable=0");
+        if (goal_p1 !== 1'b0 || goal_p2 !== 1'b0) begin
+            $display("[FAIL] Zona de gol con game_enable=0: se activo pulso de gol (g1=%b, g2=%b)", goal_p1, goal_p2);
+            error_count = error_count + 1;
+        end
+
+        // Restaurar posicion inicial y habilitar juego (estado JUGANDO)
+        frame_tick = 0;
+        reset = 1; #20; reset = 0; #10;
+        game_enable = 1'b1;
 
         // -------------------------------------------------------------
         // 2. Sin frame_tick
@@ -162,10 +185,10 @@ module tb_ball_move;
         hit_p2_reg = 0;
         frame_tick = 0; #10;
 
-        // MODIFICADO: Pruebas de Goles y Reinicio al Centro (reemplazan el antiguo rebote lateral)
+        // Pruebas de Goles y Reinicio al Centro (reemplazan el antiguo rebote lateral)
         $display("--- Pruebas de Goles en Paredes Laterales y Reinicio ---");
 
-        // --- MODIFICADO: 1. Casi gol izquierdo (ball_x = 14, dir_x = 1 -> va a x = 12 sin pulso ni reinicio) ---
+        // --- 1. Casi gol izquierdo (ball_x = 14, dir_x = 1 -> va a x = 12 sin pulso ni reinicio) ---
         uut.ball_x = 10'd14; uut.ball_y = 10'd200; uut.dir_x = 1'b1; uut.dir_y = 1'b0;
         #10;
         check_ball(1'b1, 10'd12, 10'd202, "Casi gol Izq (14->12): Sin pulso ni reinicio");
@@ -183,7 +206,7 @@ module tb_ball_move;
             $display("[FAIL] Gol P2 Exacto: goal_p2=%b (Esp:1), goal_p1=%b (Esp:0), dir_x=%b (Esp:1)", goal_p2, goal_p1, uut.dir_x);
             error_count = error_count + 1;
         end
-        // MODIFICADO: Verificar que el pulso goal_p2 dura un solo ciclo de reloj
+        // Verificar que el pulso goal_p2 dura un solo ciclo de reloj
         frame_tick = 0;
         @(posedge clk); #1;
         if (goal_p2 !== 1'b0) begin
@@ -202,7 +225,7 @@ module tb_ball_move;
         check_ball(1'b1, 10'd313, 10'd237, "Gol P2: Saque cuadro posterior (313,237)");
         frame_tick = 0; #10;
 
-        // --- MODIFICADO: 2. Casi gol derecho (ball_x = 616, dir_x = 0 -> va a x = 618 sin pulso ni reinicio) ---
+        // --- 2. Casi gol derecho (ball_x = 616, dir_x = 0 -> va a x = 618 sin pulso ni reinicio) ---
         uut.ball_x = 10'd616; uut.ball_y = 10'd200; uut.dir_x = 1'b0; uut.dir_y = 1'b0;
         #10;
         check_ball(1'b1, 10'd618, 10'd202, "Casi gol Der (616->618): Sin pulso ni reinicio");
@@ -220,7 +243,7 @@ module tb_ball_move;
             $display("[FAIL] Gol P1 Exacto: goal_p1=%b (Esp:1), goal_p2=%b (Esp:0), dir_x=%b (Esp:0)", goal_p1, goal_p2, uut.dir_x);
             error_count = error_count + 1;
         end
-        // MODIFICADO: Verificar que el pulso goal_p1 dura un solo ciclo de reloj
+        // Verificar que el pulso goal_p1 dura un solo ciclo de reloj
         frame_tick = 0;
         @(posedge clk); #1;
         if (goal_p1 !== 1'b0) begin
@@ -287,7 +310,7 @@ module tb_ball_move;
                 error_count = error_count + 1;
             end
 
-            // MODIFICADO: 3. Contar pulsos de gol y verificar que no haya dos consecutivos
+            // 3. Contar pulsos de gol y verificar que no haya dos consecutivos
             if (goal_p1) begin
                 count_goal_p1 = count_goal_p1 + 1;
                 if (prev_goal_p1) begin
@@ -310,6 +333,44 @@ module tb_ball_move;
             @(posedge clk);
         end
         $display("[INFO] Bucle largo finalizado | Goles P1: %0d | Goles P2: %0d", count_goal_p1, count_goal_p2);
+
+        // -------------------------------------------------------------
+        // MODIFICADO: 7. Congelamiento (game_enable = 0), reanudacion (0->1) y prioridad de reset
+        // -------------------------------------------------------------
+        frame_tick = 0; #10;
+        uut.ball_x = 10'd29; uut.ball_y = 10'd200; uut.dir_x = 1'b1; uut.dir_y = 1'b0;
+        hit_p1_reg = 1'b1;
+        game_enable = 1'b0;
+        #10;
+        check_ball(1'b1, 10'd29, 10'd200, "Congelado (game_enable=0) incluso con hit_p1");
+        if (uut.dir_x !== 1'b1 || uut.dir_y !== 1'b0) begin
+            $display("[FAIL] Congelado (game_enable=0): dir_x/dir_y cambiaron indebidamente");
+            error_count = error_count + 1;
+        end
+        hit_p1_reg = 1'b0;
+        frame_tick = 0; #10;
+
+        // MODIFICADO: Transicion REPOSO -> JUGANDO (game_enable 0->1) desde posicion arbitraria sin reset
+        uut.ball_x = 10'd150; uut.ball_y = 10'd120; uut.dir_x = 1'b0; uut.dir_y = 1'b1;
+        #10;
+        check_ball(1'b1, 10'd150, 10'd120, "Congelado en posicion arbitraria (150,120)");
+        frame_tick = 0;
+        game_enable = 1'b1;
+        #10;
+        check_ball(1'b1, 10'd152, 10'd118, "Reanudacion (game_enable 0->1) sin reiniciar");
+        frame_tick = 0;
+        game_enable = 1'b0;
+
+        // Verificar que reset sigue reiniciando al centro aunque game_enable este en 0
+        reset = 1'b1;
+        @(posedge clk); #1;
+        reset = 1'b0;
+        if (ball_x !== 10'd315 || ball_y !== 10'd235) begin
+            $display("[FAIL] Reset con game_enable=0 | (x,y): (%0d,%0d) (Esp: 315,235)", ball_x, ball_y);
+            error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Reset con game_enable=0 | (x,y): (315,235)");
+        end
 
         // -------------------------------------------------------------
         // Resumen Final

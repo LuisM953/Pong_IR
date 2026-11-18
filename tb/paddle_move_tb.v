@@ -6,6 +6,7 @@ module tb_paddle_move;
     reg clk;
     reg reset;
     reg frame_tick;
+    reg game_enable; // MODIFICADO: Entrada de habilitacion del juego (FSM)
     reg up;
     reg down;
     wire [9:0] y;
@@ -18,6 +19,7 @@ module tb_paddle_move;
         .clk(clk),
         .reset(reset),
         .frame_tick(frame_tick),
+        .game_enable(game_enable), // MODIFICADO: Conexion de game_enable
         .up(up),
         .down(down),
         .y(y)
@@ -47,10 +49,10 @@ module tb_paddle_move;
 
             // Comparar utilizando !== para detectar posibles valores indefinidos (X)
             if (y !== expected_y) begin
-                $display("[FAIL] %-30s | up:%b down:%b tick:%b | y: %0d (Esperado: %0d)", test_name, up, down, frame_tick, y, expected_y);
+                $display("[FAIL] %-35s | en:%b up:%b down:%b tick:%b | y: %0d (Esperado: %0d)", test_name, game_enable, up, down, frame_tick, y, expected_y);
                 error_count = error_count + 1;
             end else begin
-                $display("[PASS] %-30s | up:%b down:%b tick:%b | y: %0d", test_name, up, down, frame_tick, y);
+                $display("[PASS] %-35s | en:%b up:%b down:%b tick:%b | y: %0d", test_name, game_enable, up, down, frame_tick, y);
             end
         end
     endtask
@@ -64,6 +66,7 @@ module tb_paddle_move;
         // 5. Reset al inicio
         reset = 1;
         frame_tick = 0;
+        game_enable = 0; // MODIFICADO: Inicia deshabilitado (estado REPOSO de la FSM)
         up = 0;
         down = 0;
         
@@ -78,6 +81,13 @@ module tb_paddle_move;
         end else begin
             $display("[PASS] Reset inicial | y: %0d", y);
         end
+
+        // MODIFICADO: Comprobar bloqueo cuando game_enable = 0 (aunque haya frame_tick y botones)
+        check_move(1'b1, 1'b0, 1'b1, 10'd200, "Up con tick pero game_enable=0");
+        check_move(1'b0, 1'b1, 1'b1, 10'd200, "Down con tick pero game_enable=0");
+
+        // MODIFICADO: Habilitar juego (estado JUGANDO) para el resto de pruebas
+        game_enable = 1'b1;
 
         // 6. Casos de prueba (en el orden solicitado)
         
@@ -113,6 +123,21 @@ module tb_paddle_move;
             @(posedge clk);
         end
         check_move(1'b0, 1'b1, 1'b1, 10'd390, "Saturacion Abajo (Tope en 390)");
+
+        // MODIFICADO: Congelamiento en GAME_OVER (game_enable=0 en medio de la cancha) y prioridad de reset
+        game_enable = 1'b0;
+        check_move(1'b1, 1'b0, 1'b1, 10'd390, "Congelado en 390 al bajar game_enable");
+
+        reset = 1'b1;
+        @(posedge clk);
+        #1;
+        reset = 1'b0;
+        if (y !== 10'd200) begin
+            $display("[FAIL] Reset con game_enable=0 | y: %0d (Esperado: 200)", y);
+            error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Reset con game_enable=0 | y: %0d", y);
+        end
 
         $display("=== Simulacion Finalizada ===");
         if (error_count == 0) begin
