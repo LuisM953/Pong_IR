@@ -10,6 +10,8 @@ module pixel_gen_tb;
     reg [9:0] p2_y;
     reg [9:0] ball_x;
     reg [9:0] ball_y;
+    reg [3:0] score_p1; // MODIFICADO: Entrada de puntaje P1
+    reg [3:0] score_p2; // MODIFICADO: Entrada de puntaje P2
 
     // Salida
     wire [11:0] rgb;
@@ -25,6 +27,8 @@ module pixel_gen_tb;
         .p2_y(p2_y),
         .ball_x(ball_x),
         .ball_y(ball_y),
+        .score_p1(score_p1), // MODIFICADO: Conexion score_p1
+        .score_p2(score_p2), // MODIFICADO: Conexion score_p2
         .rgb(rgb)
     );
 
@@ -59,6 +63,8 @@ module pixel_gen_tb;
         p2_y = 10'd200;
         ball_x = 10'd315;
         ball_y = 10'd235;
+        score_p1 = 4'd0; // MODIFICADO: Inicializar marcador en 0-0
+        score_p2 = 4'd0; // MODIFICADO: Inicializar marcador en 0-0
 
         // --- 1. Video desactivado ---
         check_pixel(10'd20,  10'd200, 1'b0, 12'h000, "Video apagado en P1");
@@ -112,7 +118,7 @@ module pixel_gen_tb;
         p2_y = 10'd390;
         check_pixel(10'd610, 10'd390, 1'b1, 12'hF35, "P2 Desplazado (Y=390): Esq Sup-Izq");
         check_pixel(10'd619, 10'd469, 1'b1, 12'hF35, "P2 Desplazado (Y=390): Esq Inf-Der");
-        check_pixel(10'd615, 10'd470, 1'b1, 12'h667, "P2 Desplazado Borde: 1px Abajo (Borde)"); // MODIFICADO: Espera 667 y texto (Borde)
+        check_pixel(10'd615, 10'd470, 1'b1, 12'h667, "P2 Desplazado Borde: 1px Abajo (Borde)");
         check_pixel(10'd615, 10'd389, 1'b1, 12'h102, "P2 Desplazado Borde: 1px Arriba (Fondo)");
         p2_y = 10'd200; // Limpieza
 
@@ -163,6 +169,46 @@ module pixel_gen_tb;
         check_pixel(10'd630, 10'd460, 1'b1, 12'h667, "Pelota Desplazada (620,460) Borde: 1px Der (Borde)");
         check_pixel(10'd620, 10'd470, 1'b1, 12'h667, "Pelota Desplazada (620,460) Borde: 1px Aba (Borde)");
         check_pixel(10'd619, 10'd459, 1'b1, 12'h102, "Pelota Desplazada (620,460) Borde: Fuera (Fondo)");
+
+        // --- MODIFICADO: 9. Marcador (Scoreboard empotrado en BORDER_W: Y=1..8, Cajas: Y=2..7) ---
+        // Placa scoreboard (X: 222..417, Y: 1..8) y bordes exteriores
+        check_pixel(10'd300, 10'd0,   1'b1, 12'h667, "Scoreboard: Fila y=0 sigue siendo borde");
+        check_pixel(10'd300, 10'd9,   1'b1, 12'h667, "Scoreboard: Fila y=9 sigue siendo borde");
+        check_pixel(10'd222, 10'd1,   1'b1, 12'h334, "Scoreboard: Esq Sup-Izq placa");
+        check_pixel(10'd417, 10'd8,   1'b1, 12'h334, "Scoreboard: Esq Inf-Der placa");
+        check_pixel(10'd221, 10'd4,   1'b1, 12'h667, "Scoreboard Borde: 1px Izq (Borde)");
+        check_pixel(10'd418, 10'd4,   1'b1, 12'h667, "Scoreboard Borde: 1px Der (Borde)");
+        check_pixel(10'd319, 10'd4,   1'b1, 12'h334, "Scoreboard Prioridad: Tapa linea central en y=4");
+
+        // Ranuras vacias (0-0) y separaciones entre cajas
+        check_pixel(10'd309, 10'd2,   1'b1, 12'h213, "Score 0-0: P1 Caja 0 apagada (Esq Sup-Der)");
+        check_pixel(10'd304, 10'd7,   1'b1, 12'h213, "Score 0-0: P1 Caja 0 apagada (Esq Inf-Izq)");
+        check_pixel(10'd303, 10'd4,   1'b1, 12'h334, "Score 0-0: P1 hueco entre Caja 0 y 1 (Placa)");
+        check_pixel(10'd224, 10'd4,   1'b1, 12'h213, "Score 0-0: P1 Caja 10 ultima apagada");
+        check_pixel(10'd330, 10'd2,   1'b1, 12'h213, "Score 0-0: P2 Caja 0 apagada (Esq Sup-Izq)");
+        check_pixel(10'd335, 10'd7,   1'b1, 12'h213, "Score 0-0: P2 Caja 0 apagada (Esq Inf-Der)");
+        check_pixel(10'd336, 10'd4,   1'b1, 12'h334, "Score 0-0: P2 hueco entre Caja 0 y 1 (Placa)");
+        check_pixel(10'd415, 10'd4,   1'b1, 12'h213, "Score 0-0: P2 Caja 10 ultima apagada");
+
+        // Marcador asimetrico 3-7 (llenado en espejo desde el centro hacia afuera)
+        score_p1 = 4'd3;
+        score_p2 = 4'd7;
+        check_pixel(10'd309, 10'd4,   1'b1, 12'hFF3, "Score 3-7: P1 Caja 0 encendida (Amarillo)");
+        check_pixel(10'd293, 10'd4,   1'b1, 12'hFF3, "Score 3-7: P1 Caja 2 encendida (Amarillo)");
+        check_pixel(10'd285, 10'd4,   1'b1, 12'h213, "Score 3-7: P1 Caja 3 apagada");
+        check_pixel(10'd330, 10'd4,   1'b1, 12'hF35, "Score 3-7: P2 Caja 0 encendida (Rojo)");
+        check_pixel(10'd378, 10'd4,   1'b1, 12'hF35, "Score 3-7: P2 Caja 6 encendida (Rojo)");
+        check_pixel(10'd386, 10'd4,   1'b1, 12'h213, "Score 3-7: P2 Caja 7 apagada");
+
+        // Marcador lleno 11-11 y verificacion de video_on = 0 sobre marcador
+        score_p1 = 4'd11;
+        score_p2 = 4'd11;
+        check_pixel(10'd224, 10'd4,   1'b1, 12'hFF3, "Score 11-11: P1 Caja 10 maxima encendida");
+        check_pixel(10'd415, 10'd4,   1'b1, 12'hF35, "Score 11-11: P2 Caja 10 maxima encendida");
+        check_pixel(10'd309, 10'd4,   1'b0, 12'h000, "Video apagado sobre marcador");
+
+        score_p1 = 4'd0; // Limpieza
+        score_p2 = 4'd0; // Limpieza
 
         $display("=== Simulacion Finalizada ===");
         if (error_count == 0) begin
