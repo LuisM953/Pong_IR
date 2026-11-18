@@ -8,14 +8,16 @@ module ir_decoder (
     output reg ir_p1_up,          // mover paleta 1 arriba
     output reg ir_p1_down,        // mover paleta 1 abajo
     output reg ir_p2_up,          // mover paleta 2 arriba
-    output reg ir_p2_down         // mover paleta 2 abajo
+    output reg ir_p2_down,        // mover paleta 2 abajo
+    output reg ir_start           // iniciar partida (pulso de 1 ciclo)
 );
 
     // codigos NEC tipicos (ajustables segun tu control remoto)
     localparam CMD_P1_UP   = 8'h18, // ej. flecha arriba
                CMD_P1_DOWN = 8'h52, // ej. flecha abajo
                CMD_P2_UP   = 8'h0C, // ej. tecla 1
-               CMD_P2_DOWN = 8'h42; // ej. tecla 7
+               CMD_P2_DOWN = 8'h42, // ej. tecla 7
+               CMD_START   = 8'h1C; // Codigo temporal para Start/OK
 
     // cables de interconexion interna
     wire ir_sync;
@@ -86,11 +88,16 @@ module ir_decoder (
             ir_p1_down     <= 1'b0;
             ir_p2_up       <= 1'b0;
             ir_p2_down     <= 1'b0;
+            ir_start       <= 1'b0;
         end else begin
+            ir_start       <= 1'b0; // desactivamos la señal de inicio
             // cuando llega una trama completa y valida, actualizamos el comando
             if (data_ready && trama_valida) begin
                 ultimo_comando <= cmd;
                 hold_counter   <= 24'd12_000_000; // sostiene el movimiento 120 ms
+                if (cmd == CMD_START) begin
+                    ir_start   <= 1'b1; // activamos la señal de inicio
+                end
             end else if (hold_counter > 24'd0) begin
                 hold_counter   <= hold_counter - 1'b1;
             end
