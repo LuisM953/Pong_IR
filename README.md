@@ -23,7 +23,7 @@ Juego de Pong para dos jugadores que se muestra en un monitor VGA de 640x480 a 6
 
 - Digilent Basys3 y cable micro-USB.
 - Monitor con entrada VGA y cable VGA.
-- Receptor IR **TSOP38238** (Vishay, portadora de 38 kHz, recomendado para el protocolo NEC) conectado a un puerto Pmod. Se alimenta con 2.5 a 5.5 V, así que sirve el 3.3 V del Pmod. Su salida es activa en bajo: en reposo vale 1 y baja a 0 mientras detecta la ráfaga de 38 kHz, y por eso `ir_sync_detector` inicia en 1. Pines (TSOP382, visto de frente): 1 = OUT, 2 = GND, 3 = VS (alimentación). Confirmar el orden con la hoja de datos antes de conectarlo.
+- Receptor IR **VS1838B** (módulo genérico de 38 kHz, no es de Vishay; Luis lo nombró "VSOP1838B"). Reemplaza al TSOP38238 que se había elegido al principio conectado a un puerto Pmod. Se alimenta con 2.7 a 5.5 V, así que sirve el 3.3 V del Pmod. Su salida es activa en bajo: en reposo vale 1 y baja a 0 mientras detecta la ráfaga de 38 kHz, y por eso `ir_sync_detector` inicia en 1. **Pines:** el orden (OUT, GND, VS) cambia entre modelos; hay que verificarlo en la hoja de datos o en la serigrafía de la pieza exacta antes de conectarlo (en el VS1838B suele ser OUT, GND, VCC visto de frente, pero no lo hemos confirmado en una hoja legible) (conectar mal VS y GND puede dañarlo).
 - Dos controles remotos IR que usen el protocolo NEC.
 
 ## Software
