@@ -17,7 +17,7 @@ Juego de Pong para dos jugadores que se muestra en un monitor VGA de 640x480 a 6
 - [ ] Decodificación de las teclas de dos controles IR.
 - [ ] Un par de teclas asignado a cada jugador (subir y bajar).
 - [ ] El juego se muestra en una pantalla VGA.
-- [ ] Testbench por cada módulo, con casos límite (hecho para `vga_sync`, `pixel_gen`, `paddle_move`, `ball_move`, `hitbox` y el módulo superior `top_pong`).
+- [ ] Testbench por cada módulo, con casos límite (hecho para `vga_sync`, `pixel_gen`, `paddle_move`, `ball_move`, `hitbox`, `score`, `calibration`, `game_fsm`, `ir_decoder` y el módulo superior `top_pong`; los de `ir_sync_detector`, `ir_contador_tiempo`, `ir_fsm` e `ir_shift_register` aún no comprueban resultados automáticamente).
 
 ## Hardware
 
@@ -52,6 +52,10 @@ Pong_IR/
 │   ├── calibration.v   # pantalla blanca de calibración del monitor al arrancar
 │   ├── ir_sync_detector.v  # sincroniza la señal del receptor IR y detecta flancos
 │   ├── ir_contador_tiempo.v # cronómetro de 20 bits que se reinicia con cada flanco del receptor IR
+│   ├── ir_fsm.v        # FSM del protocolo NEC: guía, bits y parada (Jose)
+│   ├── ir_shift_register.v # registro de desplazamiento de 32 bits de la trama (Jose)
+│   ├── ir_decoder.v    # une los módulos IR, valida la trama y entrega ir_p1_up/down, ir_p2_up/down e ir_start
+│   ├── game_fsm.v      # FSM de partida: REPOSO, JUGANDO, GAME_OVER (clear y game_enable)
 │   └── top.v           # módulo superior (top_pong)
 ├── tb/
 │   ├── vga_sync_tb.v
@@ -63,10 +67,14 @@ Pong_IR/
 │   ├── calibration_tb.v
 │   ├── top_tb.v
 │   ├── tb_ir_sync_detector.v
-│   └── tb_contador_tiempo.v
+│   ├── tb_contador_tiempo.v
+│   ├── tb_ir_fsm.v
+│   ├── tb_ir_shift_register.v
+│   ├── tb_ir_decoder.v
+│   └── game_fsm_tb.v
 ├── constraints/
 │   └── Basys3.xdc      # asignación de pines de la Basys3
-├── docs/           # informe, esquemático (DigitalJS) y capturas de simulación
+├── docs/           # esquemático (DigitalJS) y capturas de simulación (`game_fsm_tb.png`, `ir_decoder_tb.png`, `top_tb.png`, etc.)
 ├── README.md
 └── AI_USAGE.md     # registro del uso de herramientas de IA
 ```
@@ -74,7 +82,7 @@ Pong_IR/
 ## Arquitectura
 
 ```
-Receptor IR -> ir_sync_detector -> Decodificador NEC -> Mapeo de teclas -> up/down de cada jugador
+Receptor IR -> ir_sync_detector -> ir_fsm + ir_shift_register -> ir_decoder (valida y mapea teclas) -> ir_p1_up/down, ir_p2_up/down (se unen con OR a los botones) e ir_start
                                                               |
                                                               v
                                           paddle_move (x2) -> posición y de cada paleta
@@ -87,9 +95,9 @@ Receptor IR -> ir_sync_detector -> Decodificador NEC -> Mapeo de teclas -> up/do
 Reloj 100 MHz -> vga_sync -> x, y, video_on, frame_tick -------+ (frame_tick también va a paddle_move y ball_move)
 ```
 
-`ball_move` entrega dos pulsos de gol (`goal_p1` y `goal_p2`) que van a `score`; sus contadores `score_p1` y `score_p2` van a `pixel_gen`, que los dibuja como cajas en la parte superior. Las salidas `win_p1` y `win_p2` quedan conectadas en `top_pong` sin consumidor hasta que exista la máquina de estados, y la entrada `clear` de `score` está en `1'b0`. Entre `pixel_gen` y la salida `rgb` hay un multiplexor (`calibration`) que durante los primeros segundos después del reset envía una pantalla blanca de calibración y después deja pasar la imagen del juego.
+`ball_move` entrega dos pulsos de gol (`goal_p1` y `goal_p2`) que van a `score`; sus contadores `score_p1` y `score_p2` van a `pixel_gen`, que los dibuja como cajas en la parte superior. `score` entrega los niveles `win_p1` y `win_p2` a `game_fsm`. `game_fsm` genera dos señales: `game_enable` (nivel en JUGANDO) que habilita el movimiento en `paddle_move` (x2) y `ball_move`, y `clear` (nivel en REPOSO) que pone el marcador en 0. `ir_decoder` entrega a `game_fsm` el pulso `ir_start` (un ciclo) cuando llega la tecla de inicio. Entre `pixel_gen` y la salida `rgb` hay un multiplexor (`calibration`) que muestra primero la pantalla blanca de calibración. La salida `state` de `game_fsm` todavía no se usa: falta que `pixel_gen` dibuje el menú de REPOSO y la pantalla de GAME_OVER con el ganador.
 
-Por ahora los controles son los botones de la Basys3 (ver tabla de pines). El receptor IR, el decodificador NEC y el mapeo de teclas reemplazarán esas entradas `up`/`down` sin cambiar el resto del diseño. El módulo `top_pong` (`src/top.v`) solo conecta los módulos entre sí y con los pines de la tarjeta (el multiplexor de calibración es el módulo `calibration`, no lógica dentro del top).
+Los jugadores pueden mover las paletas con los botones de la Basys3 o con el control IR: en el top las dos entradas se unen con OR (`up_p1 | ir_p1_up`, etc.), así que cualquiera de las dos fuentes sirve. Con un solo receptor IR solo se decodifica un comando a la vez. El módulo `top_pong` (`src/top.v`) solo conecta los módulos entre sí y con los pines de la tarjeta (el multiplexor de calibración es el módulo `calibration`, no lógica dentro del top).
 
 Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia de píxel de ~25 MHz que necesita el VGA se usa un pulso de habilitación (`tick`) cada 4 ciclos, en vez de generar un reloj dividido. Así hay un único dominio de reloj y se evitan los problemas de temporización y de cruce entre relojes.
 
@@ -104,12 +112,13 @@ Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia d
 | Detección de golpe contra las paletas | `src/hitbox.v` | Hecho, con testbench de bordes (un píxel dentro y uno fuera de cada límite) |
 | Marcador | `src/score.v` | Hecho, con testbench autoverificable (casos límite y pruebas de mutación). Cuenta hasta `MAX_SCORE` (11) y satura; `clear` y `reset` ponen ambos contadores en 0 |
 | Pantalla de calibración del monitor | `src/calibration.v` | Hecho, con testbench (`CALIB_FRAMES` = 0, 3 y 180). **Generado por IA** (ver AI_USAGE.md); Luis lo revisó y lo estudia |
-| Máquina de estados de partida (reposo, jugando, gol, fin) y botón de nueva partida | por definir | Pendiente. Usará `win_p1`, `win_p2` y la entrada `clear` de `score`, que hoy no se consumen |
+| Máquina de estados de partida (REPOSO, JUGANDO, GAME_OVER) | `src/game_fsm.v` | Hecho (Luis), con testbench autoverificable (`tb/game_fsm_tb.v`, 9 pruebas). Entradas `win_p1`, `win_p2`, `ir_start`; salidas `clear`, `game_enable` y `state`. `game_enable` se conectó a `paddle_move` (x2) y `ball_move`, con sus testbenches ampliados |
 | Sincronizador y detector de flancos del receptor IR | `src/ir_sync_detector.v` | Hecho (Jose Miguel Sedano). Su testbench (`tb/tb_ir_sync_detector.v`) solo muestra formas de onda: falta la comprobación automática y los casos límite |
 | Cronómetro de flancos del receptor IR | `src/ir_contador_tiempo.v` | Escrito por Jose Miguel Sedano. Su testbench (`tb/tb_contador_tiempo.v`) no compila: instancia `contador_tiempo` y el módulo se llama `ir_contador_tiempo`; además solo imprime mensajes, sin comprobaciones |
-| Decodificador NEC | por definir | Pendiente |
-| Mapeo de teclas | por definir | Pendiente |
-| Módulo superior (top) | `src/top.v` (módulo `top_pong`) | Hecho, con testbench (`tb/top_tb.v`). Declara las constantes de diseño y las pasa a los módulos con `#(...)`; su parámetro `CALIB_FRAMES` (180 por defecto) se pasa a `calibration`. Probado en la Basys3 con un monitor VGA: paletas, pelota y colisión con las paletas; la línea de gol, el marcador y la pantalla de calibración se verificaron solo en simulación |
+| Decodificador NEC | `src/ir_decoder.v`, `src/ir_fsm.v`, `src/ir_shift_register.v` | Integrado en `top_pong`. `ir_fsm`, `ir_shift_register` e `ir_sync_detector`/`ir_contador_tiempo` son de Jose Miguel Sedano; en `ir_decoder` Luis agregó `ir_start`, `CMD_START` y los casos de `tb/tb_ir_decoder.v`. Valida la trama (`cmd == ~cmd_inv`). Los testbenches de `ir_fsm`, `ir_shift_register` e `ir_contador_tiempo` aún no comprueban resultados automáticamente. Falta verificarlo con el receptor y el control reales |
+| Mapeo de teclas | `src/ir_decoder.v` | Hecho dentro del decodificador con `localparam` (`CMD_P1_UP` = `18`, `CMD_P1_DOWN` = `52`, `CMD_P2_UP` = `0C`, `CMD_P2_DOWN` = `42`, `CMD_START` = `1C`). **Son códigos de ejemplo**: hay que leer los del control real (el decodificador muestra el último comando en los LEDs) y cambiarlos en el decodificador y en los testbenches |
+| Módulo superior (top) | `src/top.v` (módulo `top_pong`) | Hecho, con testbench (`tb/top_tb.v`). Declara las constantes de diseño y las pasa a los módulos con `#(...)`; su parámetro `CALIB_FRAMES` (180 por defecto) se pasa a `calibration`. Probado en la Basys3 con un monitor VGA: paletas, pelota y colisión con las paletas; la línea de gol, el marcador y la pantalla de calibración se verificaron solo en simulación |  
+**Actualización:** ahora también conecta `ir_decoder` y `game_fsm`; `top_tb` prueba el arranque por IR, el bloqueo en REPOSO, START ignorado en JUGANDO, victoria de cada jugador, congelamiento en GAME_OVER y regreso a REPOSO (0 errores; la simulación completa tarda unos 5 minutos).
 
 ### Constantes y parámetros del diseño
 
@@ -247,6 +256,37 @@ Decisiones de diseño:
 - **Sin lazo combinacional:** `hitbox` lee `ball_x` y `ball_y`, que son registros de `ball_move`, y `ball_move` lee `hit_p1` y `hit_p2`. El lazo pasa por los registros, que solo cambian en el flanco de reloj, así que no hay realimentación combinacional.
 - **Constantes:** `SCREEN_W`, `MARGIN`, `PADDLE_W`, `PADDLE_H`, `BALL_W` y `BALL_H` son `parameter` (los pasa `top`, ver "Constantes y parámetros del diseño"); `P1_X` y `P2_X` son `localparam` derivados.
 
+### Diseño de `game_fsm`
+
+Es una FSM de Moore de tres estados, escrita en tres bloques (registro de estado, lógica del estado siguiente y salidas):
+
+| Estado | Código | `game_enable` | `clear` | Salida de este estado |
+|---|---|---|---|---|
+| REPOSO | `00` | 0 | 1 | pasa a JUGANDO con `ir_start` |
+| JUGANDO | `01` | 1 | 0 | pasa a GAME_OVER con `win_p1` o `win_p2`; ignora `ir_start` |
+| GAME_OVER | `10` | 0 | 0 | vuelve a REPOSO con `ir_start` |
+
+Decisiones de diseño (las tomó Luis a partir de las preguntas planteadas):
+
+- Arranca en REPOSO tras el reset; ahí `game_enable` = 0, así que paletas y pelota quedan congeladas. REPOSO será el menú de nueva partida (opciones como la velocidad quedan para más adelante).
+- `ir_start` es un **pulso** (un evento); `clear` y `game_enable` son **niveles** que salen directamente del estado.
+- `clear` está activo solo en REPOSO: el marcador se conserva en GAME_OVER para que `pixel_gen` pueda mostrar al ganador con `win_p1`/`win_p2`, y se borra al volver a REPOSO.
+- En GAME_OVER las paletas y la pelota se congelan.
+- No hay empate: con una sola pelota los goles son de uno u otro jugador.
+- Si `win_p1` y `win_p2` llegan a la vez en JUGANDO, la FSM va a GAME_OVER (no puede pasar con una sola pelota, pero queda definido); si `ir_start` y una victoria coinciden en JUGANDO, gana la victoria.
+- El estado inválido `2'b11` (posible en hardware por una perturbación) cae por el `default` a REPOSO, el estado seguro: `game_enable` = 0 y `clear` = 1.
+- Como `game_enable` entra a `paddle_move` y `ball_move` con `frame_tick && game_enable`, una entrada sin conectar (valor `z`) deja el resultado en `x`, el `if` lo trata como falso y el módulo queda congelado.
+
+### Decodificador NEC (`ir_decoder`)
+
+`ir_decoder` instancia `ir_sync_detector`, `ir_contador_tiempo`, `ir_fsm` e `ir_shift_register`. La trama NEC dura una guía de 9 ms en bajo y 4.5 ms en alto, seguida de 32 bits (ráfaga de 562.5 µs y espacio de 562.5 µs para un 0 o de 1.6875 ms para un 1), con el bit menos significativo primero: `{~cmd, cmd, ~addr, addr}`. El decodificador acepta la trama solo si `cmd == ~cmd_inv`.
+
+- Con una trama válida guarda el comando en `ultimo_comando` (visible en `comando_actual`, que va a los LEDs) y carga `hold_counter` con 12,000,000 ciclos (120 ms).
+- Mientras `hold_counter` > 0, las salidas de dirección valen 1 si el último comando era de movimiento. Así la paleta sigue moviéndose 120 ms tras cada trama.
+- `ir_start` es un pulso de un ciclo: tiene un valor por defecto de 0 antes del `if`, y solo se pone en 1 cuando llega una trama válida con `cmd == CMD_START`. Sin ese valor por defecto se quedaba en 1; sin comparar con `CMD_START` se disparaba con cualquier tecla.
+- Una trama START reemplaza a `ultimo_comando`, por lo que cancela la dirección que estuviera activa.
+
+
 ## Cómo reproducir
 
 ### 1. Clonar el repositorio
@@ -331,11 +371,13 @@ Instancia tres veces el módulo (`CALIB_FRAMES` = 0, 3 y 180) con los mismos est
 ### 9. Simular el sistema completo (`top_pong`)
 
 ```bash
-iverilog -g2012 -o sim_top src/vga_sync.v src/paddle_move.v src/pixel_gen.v src/ball_move.v src/hitbox.v src/score.v src/calibration.v src/top.v tb/top_tb.v
+iverilog -g2012 -Wall -o sim_top src/vga_sync.v src/paddle_move.v src/pixel_gen.v src/ball_move.v src/hitbox.v src/score.v src/calibration.v src/ir_sync_detector.v src/ir_contador_tiempo.v src/ir_fsm.v src/ir_shift_register.v src/ir_decoder.v src/game_fsm.v src/top.v tb/top_tb.v
 vvp sim_top
 ```
 
 Hay que listar **todos** los archivos fuente: el top instancia a los demás módulos y, si falta alguno, Icarus responde `Unknown module type`. El testbench comprueba que al soltar el reset las dos paletas valen 200, que mantener `up_p1` mueve solo la paleta 1 cuatro píxeles por cuadro, que `down_p2` mueve solo la paleta 2, que la pelota arranca en (315, 235) y avanza (313, 233), (311, 231), (309, 229) cuadro a cuadro, que `rgb` vale `E73` en la esquina de la pelota (integración `ball_x`, `ball_y` con `pixel_gen`) y que `rgb` vale `000` siempre que `video_on = 0`. También prueba la integración de la colisión: asigna la pelota en `ball_x` = 31 hacia la izquierda con la paleta 1 en 200, espera que en el siguiente cuadro llegue a 29 y en el otro rebote a 30 con `dir_x` = 0 (si `hitbox` no estuviera conectado en el top, este caso fallaría). Esos chequeos de `rgb` no tienen carrera con el movimiento de la pelota porque esta solo cambia en el blanking, donde `video_on = 0`. Además prueba la integración de los goles: con la pelota en `ball_x` = 12 hacia la izquierda y la paleta 1 alejada, espera `goal_p2` en 1, la pelota en (315, 235) y el pulso apagado un ciclo después; lo mismo en la pared derecha con `goal_p1`. Comprueba además el marcador en el sistema: tras el gol de la pared izquierda el marcador pasa a 0-1 y tras el de la derecha a 1-1, con el color de la primera caja de cada jugador en pantalla. Instancia `top_pong #(.CALIB_FRAMES(0))`: con los 180 cuadros de calibración la simulación tardaría 3 s de tiempo simulado (unos 10 minutos reales, por los 30 s que ya toman los 118 ms) y los chequeos del juego fallarían porque la salida sería blanca. Simula unos 118 ms (siete cuadros) y tiene un temporizador de seguridad de 300 ms: cada cuadro agregado suma 16.8 ms, así que agregar más cuadros exige revisar ese límite (con 100 ms el temporizador saltaba antes de que terminara la simulación). Para fijar el estado de la prueba de colisión usa asignaciones jerárquicas normales (`dut.movimiento_pelota.ball_x = 31`), no `force`, porque `force` bloquea las asignaciones del propio módulo y la pelota no se movería. Las lecturas se hacen 1 ns después del flanco de reloj, porque `y` se actualiza con asignación no bloqueante en ese flanco.
+
+Desde que el top incluye la FSM, la partida arranca congelada en REPOSO: el testbench envía una trama NEC con `CMD_START` (`8'h1C`) y espera a `game_enable` con un límite de 50 ciclos (tarda 4). Después prueba el movimiento con botones, la hitbox, los goles, el marcador, el control IR de punta a punta (trama válida y trama corrupta), `START` ignorado en JUGANDO, la victoria de cada jugador (`score` = 10 y un gol, forzado por jerarquía), el congelamiento en GAME_OVER y el regreso a REPOSO con el marcador en 0-0. En esos tres últimos casos `ir_start` se fuerza con `force`/`release` para ahorrar tiempo; el camino completo `ir_rx` → `ir_decoder` lo cubren la Prueba 1C del top y `tb_ir_decoder`, que comprueba la duración del pulso. La simulación avanza unos 689 ms (el temporizador de seguridad es de 1000 ms) y tarda unos 5 minutos reales.
 
 ### 10. Simular `ir_sync_detector`
 
@@ -347,10 +389,29 @@ gtkwave ondas_detector.vcd
 
 El testbench baja `ir_rx` (como si se pulsara un botón del control) y lo vuelve a subir. En las formas de onda se ve que `ir_sync` es `ir_rx` retrasada dos ciclos de reloj, y que `flanco_bajada` y `flanco_subida` son pulsos de un ciclo. Por ahora el testbench no comprueba nada automáticamente.
 
-### 11. Sintetizar y programar la Basys3
+### 11. Simular `game_fsm`
+
+```bash
+iverilog -g2012 -Wall -o sim_fsm src/game_fsm.v tb/game_fsm_tb.v
+vvp sim_fsm
+```
+
+El testbench tiene 9 pruebas: reset inicial en REPOSO; inmunidad a `win_p1`/`win_p2` en REPOSO; `ir_start` (un ciclo) lleva a JUGANDO; inmunidad a `ir_start` durante JUGANDO; victoria de P1 hacia GAME_OVER y regreso a REPOSO; nueva partida con victoria de P2 y retención en GAME_OVER; condiciones simultáneas en JUGANDO (7A: `ir_start` y `win_p1` en el mismo ciclo gana la victoria; 7B: `win_p1` y `win_p2` a la vez va a GAME_OVER); recuperación desde el estado inválido `2'b11`; y reset síncrono en mitad de la partida. Termina con `EXITO: TODOS LOS TESTS PASARON`.
+
+### 12. Simular `ir_decoder`
+
+```bash
+iverilog -g2012 -Wall -o sim_dec src/ir_sync_detector.v src/ir_contador_tiempo.v src/ir_fsm.v src/ir_shift_register.v src/ir_decoder.v tb/tb_ir_decoder.v
+vvp sim_dec
+```
+
+El testbench envía tramas NEC y tiene 6 casos: los casos 1 a 4 comprueban el mapeo de `P1_UP`, `P1_DOWN`, `P2_UP` y `P2_DOWN`; el caso 5 envía una trama corrupta (`cmd` y `~cmd` no coinciden) que debe rechazarse sin alterar las salidas; y el caso 6 envía `CMD_START` y comprueba que `ir_start` produce un solo pulso (`pulsos_start` = 1). El top también prueba una trama corrupta de punta a punta en `top_tb`.
+
+
+### 13. Sintetizar y programar la Basys3
 
 1. Crear un proyecto en Vivado para la parte `xc7a35tcpg236-1`.
-2. Agregar todos los archivos de `src/` (incluido `hitbox.v`; menos los del receptor IR mientras no estén en el top) como fuentes y `constraints/Basys3.xdc` como restricciones.
+2. Agregar todos los archivos de `src/` (incluidos `hitbox.v`, los módulos IR, `ir_decoder.v` y `game_fsm.v`) como fuentes y `constraints/Basys3.xdc` como restricciones.
 3. Verificar que `top_pong` esté como módulo superior (clic derecho, *Set as Top*).
 4. Ejecutar *Generate Bitstream* y programar la tarjeta desde *Hardware Manager*.
 5. Conectar el monitor al puerto VGA antes de programar.
@@ -367,16 +428,24 @@ Asignación de pines (`constraints/Basys3.xdc`, partido del archivo maestro de D
 | `rgb[11:8]` | VGA rojo (bit 0 en G19, bit 3 en N19) | rojo |
 | `rgb[7:4]` | VGA verde (bit 0 en J17, bit 3 en D17) | verde |
 | `rgb[3:0]` | VGA azul (bit 0 en N18, bit 3 en J18) | azul |
+| `ir_rx` | Pmod JA, pin JA1 (J1) | salida del receptor IR (activa en bajo) |
+| `comando_actual[7:0]` | LEDs LD0 a LD7 | último comando NEC válido, para identificar las teclas del control |
 
 En el archivo de Digilent los pines VGA aparecen agrupados rojo, azul, verde, y el primero de cada grupo es el bit menos significativo de ese canal. Hay que respetar ese orden al asignar `rgb`, de lo contrario los colores salen alterados.
 
 ### Limitaciones conocidas
 
-- Los botones entran directamente a los registros, sin sincronizar con el reloj ni filtrar rebotes. Para mantenerlos pulsados no afecta, pero queda pendiente agregar una cadena de dos registros (el mismo esquema de `ir_sync_detector` sirve).
-- La pelota rebota contra las paletas y las paredes superior e inferior, y las paredes laterales son la línea de gol (reinicio al centro y pulso `goal_p1`/`goal_p2`). El marcador cuenta y se dibuja, pero todavía no hay máquina de estados: `win_p1` y `win_p2` no se consumen, `clear` está en `1'b0` (el único modo de reiniciar el marcador es el reset) y la partida no termina. Los cinco botones de la Basys3 ya están asignados (centro = reset y cuatro para las paletas), así que el botón de nueva partida requerirá un interruptor o la máquina de estados. La velocidad debe ser como máximo `PADDLE_W` para que no atraviese las paletas. El control por IR no está integrado: existen `ir_sync_detector` e `ir_contador_tiempo`, y aún falta el decodificador NEC y el mapeo de teclas.
+- Los botones entran directamente a los registros, sin sincronizar con el reloj ni filtrar rebotes. Para mantenerlos pulsados no afecta, pero queda pendiente agregar una cadena de dos registros (el mismo esquema de `ir_sync_detector` sirve). Lo mismo vale para la entrada `ir_rx`: pasa por `ir_sync_detector`, que sí la sincroniza.
+- La pelota rebota contra las paletas y las paredes superior e inferior, y las paredes laterales son la línea de gol (reinicio al centro y pulso `goal_p1`/`goal_p2`). La partida la controla `game_fsm`: arranca congelada en REPOSO y comienza con la tecla de inicio del control IR (`CMD_START`); al llegar un jugador a `MAX_SCORE` pasa a GAME_OVER y otra pulsación de inicio vuelve a REPOSO y borra el marcador. **Aún no existe una forma de iniciar la partida con los botones de la placa**: solo el control IR genera `ir_start`. La velocidad debe ser como máximo `PADDLE_W` para que no atraviese las paletas.
+- **Pendiente en pantalla:** `state`, `win_p1` y `win_p2` no llegan a `pixel_gen`, así que todavía no hay menú de REPOSO ni pantalla de GAME_OVER con el ganador; hoy la partida solo se ve congelada.
+- **Tramas de repetición NEC:** al mantener una tecla, el control manda tramas de repetición (9 ms, 2.25 ms y una ráfaga) que `ir_fsm` ignora, así que la paleta se mueve solo 120 ms por pulsación. Habría que reiniciar `hold_counter` al detectar una repetición.
+- **Un solo comando a la vez:** con un único receptor IR no pueden moverse las dos paletas en el mismo instante por IR (sí con los botones). Mientras llega una trama no se interpreta otra.
+- **Códigos de ejemplo:** los códigos de `ir_decoder` (`18`, `52`, `0C`, `42` y `1C`) no son los de los controles reales. Hay que leerlos con los LEDs, actualizarlos en el decodificador y en `top_tb`/`tb_ir_decoder`, y comprobar que no se repite ninguno.
+- **Testbenches de Jose:** `tb_ir_sync_detector`, `tb_contador_tiempo`, `tb_ir_fsm` y `tb_ir_shift_register` aún no comprueban resultados automáticamente ni tienen casos límite.
+- **Sin verificar en hardware:** la FSM, el decodificador IR con el receptor real, el marcador y la calibración están verificados solo en simulación.
 - La pantalla de calibración dura `CALIB_FRAMES` = 180 cuadros (unos 3 s) después de cada reset; mientras tanto el juego corre pero no se ve. Aún no se probó en el monitor que *Auto Adjust* la use bien; la alternativa sería activarla con un interruptor.
 - Los testbenches de cada módulo usan los valores por defecto de los `parameter` (ver "Constantes y parámetros del diseño").
-- En la tarjeta se probaron la imagen, las paletas, el movimiento de la pelota y la colisión con las paletas; la línea de gol, el marcador y la calibración están verificados solo en simulación (para el marcador también con una imagen generada de un cuadro completo) y falta verlos en el monitor.
+- En la tarjeta se probaron la imagen, las paletas, el movimiento de la pelota y la colisión con las paletas (con los botones); la línea de gol, el marcador, la calibración, la FSM y el control IR están verificados solo en simulación y falta verlos en el monitor y con el receptor.
 
 ## Uso de IA
 
