@@ -2,10 +2,11 @@
 
 module top_pong_tb;
 
-    // MODIFICADO: Codigos NEC para prueba valida (P1_UP) y prueba negativa corrupta (P2_DOWN)
+    // Codigos NEC para pruebas de movimiento, trama corrupta y arranque de partida
     localparam [7:0] NEC_ADDR    = 8'h00,
                      CMD_P1_UP   = 8'h18,
-                     CMD_P2_DOWN = 8'h42;
+                     CMD_P2_DOWN = 8'h42,
+                     CMD_START   = 8'h1C; // MODIFICADO: Codigo NEC para iniciar/reiniciar partida
 
     reg clk;
     reg reset;
@@ -21,7 +22,8 @@ module top_pong_tb;
     wire [11:0] rgb;
 
     integer error_count = 0;
-    reg [9:0] p1_y_prev, p2_y_prev; // MODIFICADO: Captura de posicion previa para caso negativo IR
+    integer timeout_ciclos; // MODIFICADO: Contador limite para esperar propagacion de ir_decoder -> game_fsm
+    reg [9:0] p1_y_prev, p2_y_prev, ball_x_prev, ball_y_prev; // MODIFICADO: Captura de posiciones para verificar bloqueo/movimiento
 
     top_pong #(
         .CALIB_FRAMES(0) // Omitir calibracion inicial para simular el juego directamente
@@ -41,10 +43,10 @@ module top_pong_tb;
 
     always #5 clk = ~clk;
 
-    // MODIFICADO: Temporizador de seguridad ampliado a 600 ms para cubrir trama NEC valida (~68 ms) + corrupta (~68 ms)
+    // MODIFICADO: Temporizador de seguridad ampliado a 1000 ms para cubrir las 4 tramas NEC (~690 ms totales)
     initial begin
-        #600000000; // 600 ms en nanosegundos
-        $display("[FAIL] TIMEOUT: La simulacion tardo mas de 600 ms. Revisa frame_tick o ir_decoder.");
+        #1000000000; // 1000 ms en nanosegundos
+        $display("[FAIL] TIMEOUT: La simulacion tardo mas de 1000 ms. Revisa frame_tick, ir_decoder o game_fsm.");
         $finish;
     end
 
@@ -81,7 +83,7 @@ module top_pong_tb;
         end
     endtask
 
-    // MODIFICADO: Tarea para enviar una trama NEC corrupta (~cmd alterado) que debe ser rechazada
+    // Tarea para enviar una trama NEC corrupta (~cmd alterado) que debe ser rechazada
     task enviar_trama_nec_corrupta;
         input [7:0] addr;
         input [7:0] cmd;
@@ -146,15 +148,57 @@ module top_pong_tb;
         #10;
         
         // Comprobar que al soltar el reset las paletas valen 200 y la pelota esta en el centro (315, 235)
-        // Verificar tambien marcador inicial 0-0, banderas de victoria en 0 y salidas IR en reposo
+        // Verificar tambien marcador inicial 0-0, banderas de victoria en 0, salidas IR en reposo y FSM en REPOSO
         if (dut.p1_y === 10'd200 && dut.p2_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235 &&
             dut.goal_p1 === 1'b0 && dut.goal_p2 === 1'b0 &&
             dut.score_p1 === 4'd0 && dut.score_p2 === 4'd0 && dut.win_p1 === 1'b0 && dut.win_p2 === 1'b0 &&
-            dut.ir_p1_up === 1'b0 && dut.ir_p1_down === 1'b0 && dut.ir_p2_up === 1'b0 && dut.ir_p2_down === 1'b0) begin
-            $display("[PASS] Reset: p1_y = 200, p2_y = 200, pelota = (315, 235), score = 0-0, win = 0, IR = 0");
+            dut.ir_p1_up === 1'b0 && dut.ir_p1_down === 1'b0 && dut.ir_p2_up === 1'b0 && dut.ir_p2_down === 1'b0 &&
+            dut.maquina_juego.state === 2'b00 && dut.game_enable === 1'b0 && dut.clear === 1'b1) begin // MODIFICADO: Verificar estado inicial de game_fsm
+            $display("[PASS] Reset: p1_y = 200, p2_y = 200, pelota = (315, 235), score = 0-0, FSM = REPOSO");
         end else begin
-            $display("[FAIL] Reset: p1_y = %0d, p2_y = %0d, pelota = (%0d, %0d), score = %0d-%0d, win = %b-%b", 
-                     dut.p1_y, dut.p2_y, dut.ball_x, dut.ball_y, dut.score_p1, dut.score_p2, dut.win_p1, dut.win_p2);
+            $display("[FAIL] Reset: p1_y = %0d, p2_y = %0d, pelota = (%0d, %0d), score = %0d-%0d, state = %b, en = %b, clr = %b", 
+                     dut.p1_y, dut.p2_y, dut.ball_x, dut.ball_y, dut.score_p1, dut.score_p2,
+                     dut.maquina_juego.state, dut.game_enable, dut.clear);
+            error_count = error_count + 1;
+        end
+
+        // --- MODIFICADO: Prueba 1B: FSM en REPOSO (antes de START) bloquea movimiento por IR y pelota ---
+        $display("--- Probando bloqueo en REPOSO antes de START ---");
+        enviar_trama_nec(NEC_ADDR, CMD_P1_UP);
+
+        @(posedge dut.frame_tick);
+        @(posedge clk);
+        #1;
+
+        if (dut.ir_p1_up === 1'b1 && dut.p1_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235) begin
+            $display("[PASS] Antes de START (REPOSO): ir_p1_up=1 recibido, pero p1_y=200 y pelota=(315,235) inmoviles");
+        end else begin
+            $display("[FAIL] Antes de START (REPOSO): ir_p1_up=%b, p1_y=%0d (Esp:200), pelota=(%0d,%0d) (Esp:315,235)",
+                     dut.ir_p1_up, dut.p1_y, dut.ball_x, dut.ball_y);
+            error_count = error_count + 1;
+        end
+
+        // Esperar fin de retencion de 120 ms antes de enviar START
+        wait (dut.ir_p1_up === 1'b0);
+
+        // --- MODIFICADO: Prueba 1C: Arranque de partida por IR (CMD_START = 8'h1C -> REPOSO a JUGANDO) ---
+        $display("--- Enviando trama NEC START (8'h1C) para iniciar partida ---");
+        enviar_trama_nec(NEC_ADDR, CMD_START);
+
+        // Esperar propagacion sincronizador -> ir_decoder -> game_fsm (con limite de 50 ciclos, sin gastar frame_tick)
+        timeout_ciclos = 0;
+        while (dut.game_enable !== 1'b1 && timeout_ciclos < 50) begin
+            @(posedge clk);
+            #1;
+            timeout_ciclos = timeout_ciclos + 1;
+        end
+
+        if (comando_actual === CMD_START && dut.maquina_juego.state === 2'b01 &&
+            dut.game_enable === 1'b1 && dut.clear === 1'b0) begin
+            $display("[PASS] Arranque por IR (START): FSM en JUGANDO (01), game_enable=1, clear=0 (en %0d ciclos)", timeout_ciclos);
+        end else begin
+            $display("[FAIL] Arranque por IR (START): cmd=%h (Esp:1C), state=%b (Esp:01), en=%b, clr=%b",
+                     comando_actual, dut.maquina_juego.state, dut.game_enable, dut.clear);
             error_count = error_count + 1;
         end
 
@@ -348,7 +392,7 @@ module top_pong_tb;
         @(posedge clk);
         #1;
 
-        // MODIFICADO: Verificacion estricta de p1_y === 296 y sin cruce en p2_y === 300
+        // Verificacion estricta de p1_y === 296 y sin cruce en p2_y === 300
         if (comando_actual === CMD_P1_UP && dut.p1_y === 10'd296 && dut.p2_y === 10'd300) begin
             $display("[PASS] Integracion IR (Valida): cmd = %h, p1_y = 296, p2_y = 300 (sin cruce)", comando_actual);
         end else begin
@@ -357,7 +401,7 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // MODIFICADO: Caso 6B (Negativo) -> Esperar fin de retencion del pulso previo y enviar trama NEC corrupta
+        // Caso 6B (Negativo) -> Esperar fin de retencion del pulso previo y enviar trama NEC corrupta
         wait (dut.ir_p1_up === 1'b0);
         p1_y_prev = dut.p1_y;
         p2_y_prev = dut.p2_y;
@@ -374,6 +418,150 @@ module top_pong_tb;
         end else begin
             $display("[FAIL] Integracion IR (Corrupta): p1_y = %0d (Esp: %0d), p2_y = %0d (Esp: %0d), cmd = %h",
                      dut.p1_y, p1_y_prev, dut.p2_y, p2_y_prev, comando_actual);
+            error_count = error_count + 1;
+        end
+
+        // --- MODIFICADO: Prueba 7: Integracion completa de game_fsm en Top ---
+        $display("--- Probando transiciones de game_fsm en Top (JUGANDO -> GAME_OVER -> REPOSO) ---");
+
+        // Caso 7A: START en plena partida (JUGANDO) -> ignorado, no reinicia marcador ni detiene juego
+        ball_x_prev = dut.ball_x;
+        ball_y_prev = dut.ball_y;
+
+        force dut.ir_start = 1'b1;
+        @(posedge clk);
+        #1;
+        release dut.ir_start;
+
+        @(posedge dut.frame_tick);
+        @(posedge clk);
+        #1;
+
+        if (dut.maquina_juego.state === 2'b01 && dut.game_enable === 1'b1 && dut.clear === 1'b0 &&
+            dut.score_p1 === 4'd1 && dut.score_p2 === 4'd1 &&
+            (dut.ball_x !== ball_x_prev || dut.ball_y !== ball_y_prev)) begin
+            $display("[PASS] START en JUGANDO: Ignorado, score sigue en 1-1 y pelota continua moviendose");
+        end else begin
+            $display("[FAIL] START en JUGANDO: state=%b (Esp:01), score=%0d-%0d (Esp:1-1), pelota=(%0d,%0d)",
+                     dut.maquina_juego.state, dut.score_p1, dut.score_p2, dut.ball_x, dut.ball_y);
+            error_count = error_count + 1;
+        end
+
+        // Caso 7B: Victoria P1 (MAX_SCORE - 1 = 10 -> gol -> 11) -> pasa a GAME_OVER y congela todo
+        dut.marcador.score_p1        = 4'd10;
+        dut.movimiento_pelota.ball_x = 10'd618;
+        dut.movimiento_pelota.ball_y = 10'd100;
+        dut.movimiento_pelota.dir_x  = 1'b0;
+        dut.movimiento_pelota.dir_y  = 1'b0;
+        dut.paddle2.y                = 10'd300; // Paleta 2 lejos del gol
+
+        // Frame de gol: pelota entra en pared derecha y dispara goal_p1
+        @(posedge dut.frame_tick);
+        @(posedge clk);
+        #1;
+
+        // Esperar propagacion a score (11), win_p1 (1) y FSM (GAME_OVER = 2'b10)
+        repeat (2) @(posedge clk);
+        #1;
+
+        if (dut.score_p1 === 4'd11 && dut.win_p1 === 1'b1 &&
+            dut.maquina_juego.state === 2'b10 && dut.game_enable === 1'b0) begin
+            $display("[PASS] Victoria P1 (11 pts): win_p1=1, FSM en GAME_OVER (10), game_enable=0");
+        end else begin
+            $display("[FAIL] Victoria P1: score_p1=%0d (Esp:11), win_p1=%b (Esp:1), state=%b (Esp:10), en=%b",
+                     dut.score_p1, dut.win_p1, dut.maquina_juego.state, dut.game_enable);
+            error_count = error_count + 1;
+        end
+
+        // Comprobar congelamiento de paletas y pelota en GAME_OVER durante el siguiente frame_tick
+        p1_y_prev = dut.p1_y;
+        p2_y_prev = dut.p2_y;
+        up_p1     = 1'b1;
+        down_p2   = 1'b1;
+
+        @(posedge dut.frame_tick);
+        @(posedge clk);
+        #1;
+
+        up_p1   = 1'b0;
+        down_p2 = 1'b0;
+
+        if (dut.p1_y === p1_y_prev && dut.p2_y === p2_y_prev &&
+            dut.ball_x === 10'd315 && dut.ball_y === 10'd235) begin
+            $display("[PASS] Congelamiento en GAME_OVER: Paletas (%0d, %0d) y pelota (315, 235) detenidas",
+                     dut.p1_y, dut.p2_y);
+        end else begin
+            $display("[FAIL] Congelamiento en GAME_OVER: p1_y=%0d (Esp:%0d), p2_y=%0d (Esp:%0d), pelota=(%0d,%0d)",
+                     dut.p1_y, p1_y_prev, dut.p2_y, p2_y_prev, dut.ball_x, dut.ball_y);
+            error_count = error_count + 1;
+        end
+
+        // Caso 7C: START en GAME_OVER -> vuelve a REPOSO (00) con clear=1 y marcador reiniciado a 0-0
+        force dut.ir_start = 1'b1;
+        @(posedge clk);
+        #1;
+        release dut.ir_start;
+
+        // Un ciclo adicional para que score registre clear=1 y limpie score_p1/score_p2 y win_p1
+        @(posedge clk);
+        #1;
+
+        if (dut.maquina_juego.state === 2'b00 && dut.clear === 1'b1 && dut.game_enable === 1'b0 &&
+            dut.score_p1 === 4'd0 && dut.score_p2 === 4'd0 && dut.win_p1 === 1'b0 && dut.win_p2 === 1'b0) begin
+            $display("[PASS] START en GAME_OVER: FSM vuelve a REPOSO (00), clear=1 y marcador reiniciado a 0-0");
+        end else begin
+            $display("[FAIL] START en GAME_OVER: state=%b (Esp:00), clr=%b, en=%b, score=%0d-%0d (Esp:0-0), win=%b-%b",
+                     dut.maquina_juego.state, dut.clear, dut.game_enable,
+                     dut.score_p1, dut.score_p2, dut.win_p1, dut.win_p2);
+            error_count = error_count + 1;
+        end
+
+        // Caso 7D (Espejo): Victoria P2 (MAX_SCORE - 1 = 10 -> gol izq -> 11) -> GAME_OVER y retorno a REPOSO
+        force dut.ir_start = 1'b1;
+        @(posedge clk);
+        #1;
+        release dut.ir_start;
+
+        dut.marcador.score_p2        = 4'd10;
+        dut.movimiento_pelota.ball_x = 10'd12;
+        dut.movimiento_pelota.ball_y = 10'd100;
+        dut.movimiento_pelota.dir_x  = 1'b1;
+        dut.movimiento_pelota.dir_y  = 1'b0;
+        dut.paddle1.y                = 10'd300; // Paleta 1 lejos para asegurar gol en pared izquierda
+
+        // Frame de gol: pelota entra en pared izquierda y dispara goal_p2
+        @(posedge dut.frame_tick);
+        @(posedge clk);
+        #1;
+
+        // Esperar propagacion a score (11), win_p2 (1) y FSM (GAME_OVER = 2'b10)
+        repeat (2) @(posedge clk);
+        #1;
+
+        if (dut.score_p2 === 4'd11 && dut.win_p2 === 1'b1 &&
+            dut.maquina_juego.state === 2'b10 && dut.game_enable === 1'b0) begin
+            $display("[PASS] Victoria P2 (11 pts): win_p2=1, FSM en GAME_OVER (10), game_enable=0");
+        end else begin
+            $display("[FAIL] Victoria P2: score_p2=%0d (Esp:11), win_p2=%b (Esp:1), state=%b (Esp:10), en=%b",
+                     dut.score_p2, dut.win_p2, dut.maquina_juego.state, dut.game_enable);
+            error_count = error_count + 1;
+        end
+
+        // Volver a REPOSO con ir_start y verificar limpieza de score_p2 y win_p2
+        force dut.ir_start = 1'b1;
+        @(posedge clk);
+        #1;
+        release dut.ir_start;
+
+        @(posedge clk);
+        #1;
+
+        if (dut.maquina_juego.state === 2'b00 && dut.clear === 1'b1 && dut.game_enable === 1'b0 &&
+            dut.score_p1 === 4'd0 && dut.score_p2 === 4'd0 && dut.win_p1 === 1'b0 && dut.win_p2 === 1'b0) begin
+            $display("[PASS] Reinicio tras Victoria P2: FSM en REPOSO (00), marcador en 0-0");
+        end else begin
+            $display("[FAIL] Reinicio tras Victoria P2: state=%b (Esp:00), score=%0d-%0d (Esp:0-0), win=%b-%b",
+                     dut.maquina_juego.state, dut.score_p1, dut.score_p2, dut.win_p1, dut.win_p2);
             error_count = error_count + 1;
         end
 

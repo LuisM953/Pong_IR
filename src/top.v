@@ -31,7 +31,7 @@ module top_pong #(
                 BOX_MARGIN    = 2;  // Restriccion -> BOX_SIZE + BOX_MARGIN (BOX_STEP) debe ser potencia de 2 (ej. 4, 8, 16)
 
     wire video_on, frame_tick, hit_p1, hit_p2, goal_p1, goal_p2, win_p1, win_p2;
-    wire ir_p1_up, ir_p1_down, ir_p2_up, ir_p2_down;
+    wire ir_p1_up, ir_p1_down, ir_p2_up, ir_p2_down, ir_start, game_enable, clear;
     wire [9:0] x, y, p1_y, p2_y, ball_x, ball_y;
     wire [3:0] score_p1, score_p2;
 
@@ -72,6 +72,7 @@ module top_pong #(
         .clk(clk),
         .reset(reset),
         .frame_tick(frame_tick),
+        .game_enable(game_enable),
         .up(up_p1 | ir_p1_up),
         .down(down_p1 | ir_p1_down),
         .y(p1_y)
@@ -86,6 +87,7 @@ module top_pong #(
         .clk(clk),
         .reset(reset),
         .frame_tick(frame_tick),
+        .game_enable(game_enable),
         .up(up_p2 | ir_p2_up),
         .down(down_p2 | ir_p2_down),
         .y(p2_y)
@@ -132,6 +134,7 @@ module top_pong #(
         .frame_tick(frame_tick),
         .hit_p1(hit_p1),
         .hit_p2(hit_p2),
+        .game_enable(game_enable),
         .ball_x(ball_x),
         .ball_y(ball_y),
         .goal_p1(goal_p1),
@@ -159,7 +162,7 @@ module top_pong #(
     ) marcador (
         .clk(clk),
         .reset(reset),
-        .clear(1'b0), // boton CLEAR del control remoto
+        .clear(clear),
         .goal_p1(goal_p1),
         .goal_p2(goal_p2),
         .win_p1(win_p1),
@@ -176,7 +179,19 @@ module top_pong #(
         .ir_p1_up(ir_p1_up),
         .ir_p1_down(ir_p1_down),
         .ir_p2_up(ir_p2_up),
-        .ir_p2_down(ir_p2_down)
+        .ir_p2_down(ir_p2_down),
+        .ir_start(ir_start)        // Pulso de 1 ciclo para iniciar partida
+    );
+
+    game_fsm maquina_juego (
+        .clk(clk),
+        .reset(reset),
+        .win_p1(win_p1),
+        .win_p2(win_p2),
+        .ir_start(ir_start),       // Pulso de 1 ciclo desde ir_decoder
+        .clear(clear),                  // Limpia el marcador al iniciar partida
+        .game_enable(game_enable), // Habilita el movimiento de pelota/paletas
+        .state()
     );
 
 endmodule
