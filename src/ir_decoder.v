@@ -13,11 +13,11 @@ module ir_decoder (
 );
 
     // codigos NEC tipicos (ajustables segun tu control remoto)
-    localparam CMD_P1_UP   = 8'h18, // ej. flecha arriba
-               CMD_P1_DOWN = 8'h52, // ej. flecha abajo
-               CMD_P2_UP   = 8'h0C, // ej. tecla 1
-               CMD_P2_DOWN = 8'h42, // ej. tecla 7
-               CMD_START   = 8'h1C; // Codigo temporal para Start/OK
+    localparam CMD_P1_UP   = 8'h02, // Tecla 2
+               CMD_P1_DOWN = 8'h08, // Tecla 8
+               CMD_P2_UP   = 8'h19, // Flecha Arriba
+               CMD_P2_DOWN = 8'h1D, // Flecha Abajo
+               CMD_START   = 8'h57; // Codigo para Start/OK
 
     // cables de interconexion interna
     wire ir_sync;

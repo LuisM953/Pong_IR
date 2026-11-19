@@ -2,11 +2,11 @@
 
 module top_pong_tb;
 
-    // Codigos NEC para pruebas de movimiento, trama corrupta y arranque de partida
+    // MODIFICADO: Codigos NEC actualizados segun ir_decoder.v
     localparam [7:0] NEC_ADDR    = 8'h00,
-                     CMD_P1_UP   = 8'h18,
-                     CMD_P2_DOWN = 8'h42,
-                     CMD_START   = 8'h1C; // MODIFICADO: Codigo NEC para iniciar/reiniciar partida
+                     CMD_P1_UP   = 8'h02, // MODIFICADO
+                     CMD_P2_DOWN = 8'h1D, // MODIFICADO
+                     CMD_START   = 8'h57; // MODIFICADO
 
     reg clk;
     reg reset;
@@ -22,8 +22,8 @@ module top_pong_tb;
     wire [11:0] rgb;
 
     integer error_count = 0;
-    integer timeout_ciclos; // MODIFICADO: Contador limite para esperar propagacion de ir_decoder -> game_fsm
-    reg [9:0] p1_y_prev, p2_y_prev, ball_x_prev, ball_y_prev; // MODIFICADO: Captura de posiciones para verificar bloqueo/movimiento
+    integer timeout_ciclos; // Contador limite para esperar propagacion de ir_decoder -> game_fsm
+    reg [9:0] p1_y_prev, p2_y_prev, ball_x_prev, ball_y_prev; // Captura de posiciones para verificar bloqueo/movimiento
 
     top_pong #(
         .CALIB_FRAMES(0) // Omitir calibracion inicial para simular el juego directamente
@@ -43,7 +43,7 @@ module top_pong_tb;
 
     always #5 clk = ~clk;
 
-    // MODIFICADO: Temporizador de seguridad ampliado a 1000 ms para cubrir las 4 tramas NEC (~690 ms totales)
+    // Temporizador de seguridad ampliado a 1000 ms para cubrir las 4 tramas NEC (~690 ms totales)
     initial begin
         #1000000000; // 1000 ms en nanosegundos
         $display("[FAIL] TIMEOUT: La simulacion tardo mas de 1000 ms. Revisa frame_tick, ir_decoder o game_fsm.");
@@ -153,7 +153,7 @@ module top_pong_tb;
             dut.goal_p1 === 1'b0 && dut.goal_p2 === 1'b0 &&
             dut.score_p1 === 4'd0 && dut.score_p2 === 4'd0 && dut.win_p1 === 1'b0 && dut.win_p2 === 1'b0 &&
             dut.ir_p1_up === 1'b0 && dut.ir_p1_down === 1'b0 && dut.ir_p2_up === 1'b0 && dut.ir_p2_down === 1'b0 &&
-            dut.maquina_juego.state === 2'b00 && dut.game_enable === 1'b0 && dut.clear === 1'b1) begin // MODIFICADO: Verificar estado inicial de game_fsm
+            dut.maquina_juego.state === 2'b00 && dut.game_enable === 1'b0 && dut.clear === 1'b1) begin // Verificar estado inicial de game_fsm
             $display("[PASS] Reset: p1_y = 200, p2_y = 200, pelota = (315, 235), score = 0-0, FSM = REPOSO");
         end else begin
             $display("[FAIL] Reset: p1_y = %0d, p2_y = %0d, pelota = (%0d, %0d), score = %0d-%0d, state = %b, en = %b, clr = %b", 
@@ -162,7 +162,7 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // --- MODIFICADO: Prueba 1B: FSM en REPOSO (antes de START) bloquea movimiento por IR y pelota ---
+        // --- Prueba 1B: FSM en REPOSO (antes de START) bloquea movimiento por IR y pelota ---
         $display("--- Probando bloqueo en REPOSO antes de START ---");
         enviar_trama_nec(NEC_ADDR, CMD_P1_UP);
 
@@ -170,19 +170,20 @@ module top_pong_tb;
         @(posedge clk);
         #1;
 
-        if (dut.ir_p1_up === 1'b1 && dut.p1_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235) begin
-            $display("[PASS] Antes de START (REPOSO): ir_p1_up=1 recibido, pero p1_y=200 y pelota=(315,235) inmoviles");
+        // MODIFICADO: Comprobar tambien que comando_actual coincide con CMD_P1_UP (8'h02)
+        if (comando_actual === CMD_P1_UP && dut.ir_p1_up === 1'b1 && dut.p1_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235) begin // MODIFICADO
+            $display("[PASS] Antes de START (REPOSO): cmd=%h, ir_p1_up=1 recibido, pero p1_y=200 y pelota=(315,235) inmoviles", comando_actual); // MODIFICADO
         end else begin
-            $display("[FAIL] Antes de START (REPOSO): ir_p1_up=%b, p1_y=%0d (Esp:200), pelota=(%0d,%0d) (Esp:315,235)",
-                     dut.ir_p1_up, dut.p1_y, dut.ball_x, dut.ball_y);
+            $display("[FAIL] Antes de START (REPOSO): cmd=%h (Esp:%h), ir_p1_up=%b, p1_y=%0d (Esp:200), pelota=(%0d,%0d) (Esp:315,235)", // MODIFICADO
+                     comando_actual, CMD_P1_UP, dut.ir_p1_up, dut.p1_y, dut.ball_x, dut.ball_y);
             error_count = error_count + 1;
         end
 
         // Esperar fin de retencion de 120 ms antes de enviar START
         wait (dut.ir_p1_up === 1'b0);
 
-        // --- MODIFICADO: Prueba 1C: Arranque de partida por IR (CMD_START = 8'h1C -> REPOSO a JUGANDO) ---
-        $display("--- Enviando trama NEC START (8'h1C) para iniciar partida ---");
+        // --- Prueba 1C: Arranque de partida por IR (CMD_START = 8'h57 -> REPOSO a JUGANDO) ---
+        $display("--- Enviando trama NEC START (8'h57) para iniciar partida ---"); // MODIFICADO
         enviar_trama_nec(NEC_ADDR, CMD_START);
 
         // Esperar propagacion sincronizador -> ir_decoder -> game_fsm (con limite de 50 ciclos, sin gastar frame_tick)
@@ -195,9 +196,9 @@ module top_pong_tb;
 
         if (comando_actual === CMD_START && dut.maquina_juego.state === 2'b01 &&
             dut.game_enable === 1'b1 && dut.clear === 1'b0) begin
-            $display("[PASS] Arranque por IR (START): FSM en JUGANDO (01), game_enable=1, clear=0 (en %0d ciclos)", timeout_ciclos);
+            $display("[PASS] Arranque por IR (START): cmd=%h, FSM en JUGANDO (01), game_enable=1, clear=0 (en %0d ciclos)", comando_actual, timeout_ciclos); // MODIFICADO
         end else begin
-            $display("[FAIL] Arranque por IR (START): cmd=%h (Esp:1C), state=%b (Esp:01), en=%b, clr=%b",
+            $display("[FAIL] Arranque por IR (START): cmd=%h (Esp:57), state=%b (Esp:01), en=%b, clr=%b", // MODIFICADO
                      comando_actual, dut.maquina_juego.state, dut.game_enable, dut.clear);
             error_count = error_count + 1;
         end
@@ -392,7 +393,7 @@ module top_pong_tb;
         @(posedge clk);
         #1;
 
-        // Verificacion estricta de p1_y === 296 y sin cruce en p2_y === 300
+        // Verificacion estricta de comando_actual === CMD_P1_UP (8'h02), p1_y === 296 y sin cruce en p2_y === 300
         if (comando_actual === CMD_P1_UP && dut.p1_y === 10'd296 && dut.p2_y === 10'd300) begin
             $display("[PASS] Integracion IR (Valida): cmd = %h, p1_y = 296, p2_y = 300 (sin cruce)", comando_actual);
         end else begin
@@ -421,7 +422,7 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // --- MODIFICADO: Prueba 7: Integracion completa de game_fsm en Top ---
+        // --- Prueba 7: Integracion completa de game_fsm en Top ---
         $display("--- Probando transiciones de game_fsm en Top (JUGANDO -> GAME_OVER -> REPOSO) ---");
 
         // Caso 7A: START en plena partida (JUGANDO) -> ignorado, no reinicia marcador ni detiene juego
