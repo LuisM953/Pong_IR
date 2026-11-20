@@ -6,9 +6,10 @@ module tb_paddle_move;
     reg clk;
     reg reset;
     reg frame_tick;
-    reg game_enable; // MODIFICADO: Entrada de habilitacion del juego (FSM)
+    reg game_enable; // Entrada de habilitacion del juego (FSM)
     reg up;
     reg down;
+    reg clear;       // MODIFICADO: Entrada para resetear la paleta a la posicion inicial
     wire [9:0] y;
 
     integer error_count = 0;
@@ -19,9 +20,10 @@ module tb_paddle_move;
         .clk(clk),
         .reset(reset),
         .frame_tick(frame_tick),
-        .game_enable(game_enable), // MODIFICADO: Conexion de game_enable
+        .game_enable(game_enable),
         .up(up),
         .down(down),
+        .clear(clear), // MODIFICADO: Conexion del puerto clear
         .y(y)
     );
 
@@ -66,9 +68,10 @@ module tb_paddle_move;
         // 5. Reset al inicio
         reset = 1;
         frame_tick = 0;
-        game_enable = 0; // MODIFICADO: Inicia deshabilitado (estado REPOSO de la FSM)
+        game_enable = 0; // Inicia deshabilitado (estado REPOSO de la FSM)
         up = 0;
         down = 0;
+        clear = 0;       // MODIFICADO: Inicializacion de clear
         
         #20; // Mantener el reset activo unos ciclos
         reset = 0;
@@ -82,11 +85,11 @@ module tb_paddle_move;
             $display("[PASS] Reset inicial | y: %0d", y);
         end
 
-        // MODIFICADO: Comprobar bloqueo cuando game_enable = 0 (aunque haya frame_tick y botones)
+        // Comprobar bloqueo cuando game_enable = 0 (aunque haya frame_tick y botones)
         check_move(1'b1, 1'b0, 1'b1, 10'd200, "Up con tick pero game_enable=0");
         check_move(1'b0, 1'b1, 1'b1, 10'd200, "Down con tick pero game_enable=0");
 
-        // MODIFICADO: Habilitar juego (estado JUGANDO) para el resto de pruebas
+        // Habilitar juego (estado JUGANDO) para el resto de pruebas
         game_enable = 1'b1;
 
         // 6. Casos de prueba (en el orden solicitado)
@@ -124,7 +127,7 @@ module tb_paddle_move;
         end
         check_move(1'b0, 1'b1, 1'b1, 10'd390, "Saturacion Abajo (Tope en 390)");
 
-        // MODIFICADO: Congelamiento en GAME_OVER (game_enable=0 en medio de la cancha) y prioridad de reset
+        // Congelamiento en GAME_OVER (game_enable=0 en medio de la cancha) y prioridad de reset
         game_enable = 1'b0;
         check_move(1'b1, 1'b0, 1'b1, 10'd390, "Congelado en 390 al bajar game_enable");
 
@@ -138,6 +141,41 @@ module tb_paddle_move;
         end else begin
             $display("[PASS] Reset con game_enable=0 | y: %0d", y);
         end
+
+        // --- MODIFICADO: 7. Pruebas de clear (independiente de tick/enable/botones y en pleno movimiento) ---
+        $display("--- Probando clear en paddle_move ---");
+
+        // Desplazar paleta fuera de 200 (200 -> 196 -> 192)
+        game_enable = 1'b1;
+        check_move(1'b1, 1'b0, 1'b1, 10'd196, "Preparacion clear: paso 1 (196)");
+        check_move(1'b1, 1'b0, 1'b1, 10'd192, "Preparacion clear: paso 2 (192)");
+
+        // Caso 7A: clear con game_enable=0, frame_tick=0 y up=1 -> vuelve a 200 sin importar tick/enable/up
+        game_enable = 1'b0;
+        clear = 1'b1;
+        check_move(1'b1, 1'b0, 1'b0, 10'd200, "clear con en=0, tick=0, up=1 -> 200");
+        clear = 1'b0;
+
+        // Caso 7B: clear con game_enable=0, frame_tick=1 y down=1 desde y=350 -> vuelve a 200
+        frame_tick = 1'b0;
+        uut.y = 10'd350;
+        #10;
+        clear = 1'b1;
+        check_move(1'b0, 1'b1, 1'b1, 10'd200, "clear con en=0, tick=1, down=1 -> 200");
+        clear = 1'b0;
+
+        // Caso 7C: clear en pleno movimiento (game_enable=1, frame_tick=1, down=1)
+        game_enable = 1'b1;
+        check_move(1'b0, 1'b1, 1'b1, 10'd204, "Movimiento activo paso 1 (204)");
+        check_move(1'b0, 1'b1, 1'b1, 10'd208, "Movimiento activo paso 2 (208)");
+
+        clear = 1'b1;
+        check_move(1'b0, 1'b1, 1'b1, 10'd200, "clear en pleno movimiento -> 200");
+
+        // Al soltar clear con el boton aun presionado, reanuda movimiento desde 200
+        clear = 1'b0;
+        check_move(1'b0, 1'b1, 1'b1, 10'd204, "Reanudacion tras soltar clear (204)");
+        up = 1'b0; down = 1'b0; frame_tick = 1'b0;
 
         $display("=== Simulacion Finalizada ===");
         if (error_count == 0) begin

@@ -13,6 +13,7 @@ module ball_move #(
     input  wire frame_tick,
     input  wire hit_p1,
     input  wire hit_p2,
+    input  wire clear,         // resetea el marcador y la pelota
     input  wire game_enable,   // habilita el movimiento de la pelota/paletas
     output reg  goal_p1,       // 1 cuando la pelota llega a la pared derecha
     output reg  goal_p2,       // 1 cuando la pelota llega a la pared izquierda
@@ -37,7 +38,7 @@ wire gol     = gol_izq || gol_der;
 always @(posedge clk) begin
     goal_p1 <= 0; // resetear goles cada ciclo
     goal_p2 <= 0; // resetear goles cada ciclo
-    if (reset) begin
+    if (reset || clear) begin
         ball_x <= BALL_X_INICIO;
         ball_y <= BALL_Y_INICIO;
         dir_x <= 1; // direccion inicial: izquierda

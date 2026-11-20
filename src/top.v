@@ -75,6 +75,7 @@ module top_pong #(
         .game_enable(game_enable),
         .up(up_p1 | ir_p1_up),
         .down(down_p1 | ir_p1_down),
+        .clear(clear),
         .y(p1_y)
     );
 
@@ -90,6 +91,7 @@ module top_pong #(
         .game_enable(game_enable),
         .up(up_p2 | ir_p2_up),
         .down(down_p2 | ir_p2_down),
+        .clear(clear),
         .y(p2_y)
     );
 
@@ -134,6 +136,7 @@ module top_pong #(
         .frame_tick(frame_tick),
         .hit_p1(hit_p1),
         .hit_p2(hit_p2),
+        .clear(clear),
         .game_enable(game_enable),
         .ball_x(ball_x),
         .ball_y(ball_y),

@@ -6,7 +6,8 @@ module tb_ball_move;
     reg clk;
     reg reset;
     reg frame_tick;
-    reg game_enable; // MODIFICADO: Entrada de habilitacion del juego (FSM)
+    reg game_enable; // Entrada de habilitacion del juego (FSM)
+    reg clear;       // MODIFICADO: Entrada para resetear la pelota al centro y direcciones iniciales
     
     // Estímulos independientes para aislar ball_move
     reg hit_p1_reg;
@@ -35,7 +36,8 @@ module tb_ball_move;
         .frame_tick(frame_tick),
         .hit_p1(hit_p1_reg),
         .hit_p2(hit_p2_reg),
-        .game_enable(game_enable), // MODIFICADO: Conexion de game_enable
+        .clear(clear),             // MODIFICADO: Conexion del puerto clear
+        .game_enable(game_enable),
         .goal_p1(goal_p1), // Conexion de salida gol jugador 1
         .goal_p2(goal_p2), // Conexion de salida gol jugador 2
         .ball_x(ball_x),
@@ -73,7 +75,8 @@ module tb_ball_move;
 
         clk = 0;
         frame_tick = 0;
-        game_enable = 0; // MODIFICADO: Inicia deshabilitado (estado REPOSO de la FSM)
+        game_enable = 0; // Inicia deshabilitado (estado REPOSO de la FSM)
+        clear = 0;       // MODIFICADO: Inicializacion de clear
         hit_p1_reg = 0;
         hit_p2_reg = 0;
 
@@ -95,7 +98,7 @@ module tb_ball_move;
         end
 
         // -------------------------------------------------------------
-        // MODIFICADO: 1b. Bloqueo con game_enable = 0 (aun con frame_tick = 1)
+        // 1b. Bloqueo con game_enable = 0 (aun con frame_tick = 1)
         // -------------------------------------------------------------
         check_ball(1'b1, 10'd315, 10'd235, "Con frame_tick pero game_enable=0");
 
@@ -335,7 +338,7 @@ module tb_ball_move;
         $display("[INFO] Bucle largo finalizado | Goles P1: %0d | Goles P2: %0d", count_goal_p1, count_goal_p2);
 
         // -------------------------------------------------------------
-        // MODIFICADO: 7. Congelamiento (game_enable = 0), reanudacion (0->1) y prioridad de reset
+        // 7. Congelamiento (game_enable = 0), reanudacion (0->1) y prioridad de reset
         // -------------------------------------------------------------
         frame_tick = 0; #10;
         uut.ball_x = 10'd29; uut.ball_y = 10'd200; uut.dir_x = 1'b1; uut.dir_y = 1'b0;
@@ -350,7 +353,7 @@ module tb_ball_move;
         hit_p1_reg = 1'b0;
         frame_tick = 0; #10;
 
-        // MODIFICADO: Transicion REPOSO -> JUGANDO (game_enable 0->1) desde posicion arbitraria sin reset
+        // Transicion REPOSO -> JUGANDO (game_enable 0->1) desde posicion arbitraria sin reset
         uut.ball_x = 10'd150; uut.ball_y = 10'd120; uut.dir_x = 1'b0; uut.dir_y = 1'b1;
         #10;
         check_ball(1'b1, 10'd150, 10'd120, "Congelado en posicion arbitraria (150,120)");
@@ -371,6 +374,60 @@ module tb_ball_move;
         end else begin
             $display("[PASS] Reset con game_enable=0 | (x,y): (315,235)");
         end
+
+        // -------------------------------------------------------------
+        // MODIFICADO: 8. Pruebas de clear (independiente de tick/enable/colisiones y en pleno movimiento)
+        // -------------------------------------------------------------
+        $display("--- Probando clear en ball_move ---");
+
+        // Caso 8A: clear con game_enable=0, frame_tick=0, colisiones activas y direcciones invertidas
+        frame_tick = 1'b0;
+        game_enable = 1'b0;
+        uut.ball_x = 10'd12; uut.ball_y = 10'd450; uut.dir_x = 1'b0; uut.dir_y = 1'b0;
+        hit_p1_reg = 1'b1;
+        hit_p2_reg = 1'b1;
+        #10;
+        clear = 1'b1;
+        check_ball(1'b0, 10'd315, 10'd235, "clear con en=0, tick=0, hits=1 -> (315,235)");
+        if (uut.dir_x !== 1'b1 || uut.dir_y !== 1'b1 || goal_p1 !== 1'b0 || goal_p2 !== 1'b0) begin
+            $display("[FAIL] clear 8A: dir=(%b,%b) [Esp:(1,1)], goles=(%b,%b) [Esp:(0,0)]",
+                     uut.dir_x, uut.dir_y, goal_p1, goal_p2);
+            error_count = error_count + 1;
+        end
+        clear = 1'b0;
+        hit_p1_reg = 1'b0;
+        hit_p2_reg = 1'b0;
+
+        // Caso 8B: clear con game_enable=0 y frame_tick=1 en zona de gol derecha (no debe anotar gol)
+        uut.ball_x = 10'd618; uut.ball_y = 10'd180; uut.dir_x = 1'b0; uut.dir_y = 1'b0;
+        #10;
+        clear = 1'b1;
+        check_ball(1'b1, 10'd315, 10'd235, "clear con en=0, tick=1 en zona gol -> (315,235)");
+        if (uut.dir_x !== 1'b1 || uut.dir_y !== 1'b1 || goal_p1 !== 1'b0 || goal_p2 !== 1'b0) begin
+            $display("[FAIL] clear 8B: dir=(%b,%b) [Esp:(1,1)], goles=(%b,%b) [Esp:(0,0)]",
+                     uut.dir_x, uut.dir_y, goal_p1, goal_p2);
+            error_count = error_count + 1;
+        end
+        clear = 1'b0;
+        frame_tick = 1'b0; #10;
+
+        // Caso 8C: clear en pleno movimiento (game_enable=1, frame_tick=1, moviendose abajo-derecha)
+        uut.ball_x = 10'd100; uut.ball_y = 10'd150; uut.dir_x = 1'b0; uut.dir_y = 1'b0;
+        game_enable = 1'b1;
+        #10;
+        check_ball(1'b1, 10'd102, 10'd152, "Movimiento activo paso 1 (102,152)");
+
+        clear = 1'b1;
+        check_ball(1'b1, 10'd315, 10'd235, "clear en pleno movimiento -> (315,235)");
+        if (uut.dir_x !== 1'b1 || uut.dir_y !== 1'b1) begin
+            $display("[FAIL] clear en movimiento: dir=(%b,%b) [Esp:(1,1)]", uut.dir_x, uut.dir_y);
+            error_count = error_count + 1;
+        end
+
+        // Al soltar clear, debe avanzar desde (315,235) hacia arriba-izquierda (313,233)
+        clear = 1'b0;
+        check_ball(1'b1, 10'd313, 10'd233, "Reanudacion tras clear: (313,233)");
+        frame_tick = 1'b0;
 
         // -------------------------------------------------------------
         // Resumen Final

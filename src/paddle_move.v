@@ -10,6 +10,7 @@ module paddle_move #(
     input  wire game_enable,  // habilita el movimiento de la pelota/paletas
     input  wire up,
     input  wire down,
+    input  wire clear,        // resetea la paleta a la posicion inicial
     output reg  [9:0] y       // borde superior de la paleta
 );
 
@@ -18,7 +19,7 @@ localparam  Y_MIN    = BORDER_W,
             Y_INIT   = (SCREEN_H - PADDLE_H)/2;
 
 always @(posedge clk) begin
-    if (reset) begin
+    if (reset || clear) begin
         y <= Y_INIT;
     end else if (frame_tick && game_enable) begin
         if (up && !down) begin
