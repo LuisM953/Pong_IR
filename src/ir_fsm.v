@@ -8,15 +8,18 @@ module ir_fsm (
     input [19:0] cuenta_actual,  // tiempo medido por el contador
     output reg shift_en,         // habilita guardar bit en el registro
     output reg shift_in,         // bit decodificado (0 o 1)
-    output reg data_ready        // bandera de trama de 32 bits lista
+    output reg data_ready,       // bandera de trama de 32 bits lista
+    output reg repeat_ready      // bandera de trama de 32 bits lista (para repeticion de tecla)
 );
 
     // codificacion de los 5 estados
-    localparam IDLE        = 3'd0;
-    localparam LEADER_LOW  = 3'd1;
-    localparam LEADER_HIGH = 3'd2;
-    localparam READ_DATA   = 3'd3;
-    localparam STOP_BIT    = 3'd4;
+    localparam IDLE        = 3'd0,
+               LEADER_LOW  = 3'd1,
+               LEADER_HIGH = 3'd2,
+               READ_DATA   = 3'd3,
+               STOP_BIT    = 3'd4,
+               REPEAT_STOP = 3'd5; // estado para detectar trama de repeticion de tecla
+
 
     reg [2:0] estado_actual, estado_siguiente;
     reg [5:0] bits_leidos; // cuenta de 0 a 31
@@ -43,6 +46,7 @@ module ir_fsm (
         shift_en         = 1'b0;
         shift_in         = 1'b0;
         data_ready       = 1'b0;
+        repeat_ready     = 1'b0;
 
         case (estado_actual)
             IDLE: begin
@@ -65,6 +69,8 @@ module ir_fsm (
                 if (flanco_bajada) begin
                     if (cuenta_actual > 20'd400_000)
                         estado_siguiente = READ_DATA;   // pausa valida de 4.5ms
+                    else if (cuenta_actual > 20'd180_000)
+                        estado_siguiente = REPEAT_STOP; // trama de repeticion
                     else
                         estado_siguiente = IDLE;        // error de protocolo
                 end else if (cuenta_actual > 20'd950_000) begin
@@ -96,6 +102,16 @@ module ir_fsm (
                     estado_siguiente = IDLE;
                 end else if (cuenta_actual > 20'd950_000) begin
                     estado_siguiente = IDLE;
+                end
+            end
+
+            REPEAT_STOP: begin
+                // esperamos el flanco de subida final para cerrar la trama de repeticion
+                if (flanco_subida) begin
+                    repeat_ready     = 1'b1;
+                    estado_siguiente = IDLE;
+                end else if (cuenta_actual > 20'd950_000) begin
+                    estado_siguiente = IDLE; // timeout
                 end
             end
 

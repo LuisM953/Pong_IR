@@ -20,13 +20,9 @@ module ir_decoder (
                CMD_START   = 8'h57; // Codigo para Start/OK
 
     // cables de interconexion interna
-    wire ir_sync;
-    wire flanco_bajada;
-    wire flanco_subida;
+    wire ir_sync, flanco_bajada, flanco_subida;
+    wire shift_en, shift_in, data_ready, repeat_ready;
     wire [19:0] cuenta_actual;
-    wire shift_en;
-    wire shift_in;
-    wire data_ready;
     wire [31:0] trama_32;
 
     // 1. Sincronizador y detector de flancos
@@ -57,7 +53,8 @@ module ir_decoder (
         .cuenta_actual(cuenta_actual),
         .shift_en(shift_en),
         .shift_in(shift_in),
-        .data_ready(data_ready)
+        .data_ready(data_ready),
+        .repeat_ready(repeat_ready)
     );
 
     // 4. Registro de desplazamiento de 32 bits
@@ -97,6 +94,11 @@ module ir_decoder (
                 hold_counter   <= 24'd12_000_000; // sostiene el movimiento 120 ms
                 if (cmd == CMD_START) begin
                     ir_start   <= 1'b1; // activamos la señal de inicio
+                end
+            end else if (repeat_ready) begin
+                // cuando llega una trama de repeticion, sostenemos el comando previo
+                if (hold_counter > 24'd0) begin
+                    hold_counter <= 24'd12_000_000; // sostenemos el movimiento 120 ms
                 end
             end else if (hold_counter > 24'd0) begin
                 hold_counter   <= hold_counter - 1'b1;
