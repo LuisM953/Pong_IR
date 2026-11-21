@@ -1,87 +1,153 @@
 === Iniciando simulacion ===
-[PASS] Video apagado en P1                                          | x: 20, y:200, vid:0 | Salida: 000
-[PASS] Video apagado en Pelota                                      | x:315, y:235, vid:0 | Salida: 000
-[PASS] Borde: Esquina Sup-Izq exterior                              | x:  0, y:  0, vid:1 | Salida: 667
-[PASS] Fondo: Esquina Sup-Izq interior                              | x: 10, y: 10, vid:1 | Salida: 102
-[PASS] Fondo: Zona libre                                            | x:100, y:100, vid:1 | Salida: 102
-[PASS] P1: Esquina Sup-Izq                                          | x: 20, y:200, vid:1 | Salida: ff3
-[PASS] P1: Esquina Inf-Der                                          | x: 29, y:279, vid:1 | Salida: ff3
-[PASS] P1 Borde: 1px Izquierda (Fondo)                              | x: 19, y:240, vid:1 | Salida: 102
-[PASS] P1 Borde: 1px Derecha (Fondo)                                | x: 30, y:240, vid:1 | Salida: 102
-[PASS] P1 Borde: 1px Arriba (Fondo)                                 | x: 25, y:199, vid:1 | Salida: 102
-[PASS] P1 Borde: 1px Abajo (Fondo)                                  | x: 25, y:280, vid:1 | Salida: 102
-[PASS] P2: Esquina Sup-Izq                                          | x:610, y:200, vid:1 | Salida: f35
-[PASS] P2: Esquina Inf-Der                                          | x:619, y:279, vid:1 | Salida: f35
-[PASS] P2 Borde: 1px Izquierda (Fondo)                              | x:609, y:240, vid:1 | Salida: 102
-[PASS] P2 Borde: 1px Derecha (Fondo)                                | x:620, y:240, vid:1 | Salida: 102
-[PASS] P2 Borde: 1px Arriba (Fondo)                                 | x:615, y:199, vid:1 | Salida: 102
-[PASS] P2 Borde: 1px Abajo (Fondo)                                  | x:615, y:280, vid:1 | Salida: 102
-[PASS] Pelota (Centro): Esquina Sup-Izq                             | x:315, y:235, vid:1 | Salida: e73
-[PASS] Pelota (Centro): Esquina Inf-Der                             | x:324, y:244, vid:1 | Salida: e73
-[PASS]  (Centro) Borde: 1px Izq (Fondo)                             | x:314, y:240, vid:1 | Salida: 102
-[PASS]  (Centro) Borde: 1px Der (Fondo)                             | x:325, y:240, vid:1 | Salida: 102
-[PASS]  (Centro) Borde: 1px Arr (Fondo)                             | x:317, y:234, vid:1 | Salida: 102
-[PASS]  (Centro) Borde: 1px Aba (Fondo)                             | x:317, y:245, vid:1 | Salida: 102
-[PASS] Linea Central: Tramo ON superior                             | x:319, y: 20, vid:1 | Salida: 667
-[PASS] inea Central: Tramo OFF superior                             | x:319, y: 24, vid:1 | Salida: 102
-[PASS] Linea Central: Espejo Inferior                               | x:319, y:459, vid:1 | Salida: 667
-[PASS] Linea Borde: 1px Izq (Fondo)                                 | x:318, y: 20, vid:1 | Salida: 102
-[PASS] Linea Borde: 1px Der (Fondo)                                 | x:321, y: 20, vid:1 | Salida: 102
-[PASS] 1 Desplazado (Y=10): Esq Sup-Izq                             | x: 20, y: 10, vid:1 | Salida: ff3
-[PASS] 1 Desplazado (Y=10): Esq Inf-Der                             | x: 29, y: 89, vid:1 | Salida: ff3
-[PASS] plazado Borde: 1px Abajo (Fondo)                             | x: 25, y: 90, vid:1 | Salida: 102
-[PASS] esplazado Borde: 1px Izq (Fondo)                             | x: 19, y: 40, vid:1 | Salida: 102
-[PASS] esplazado Borde: 1px Der (Fondo)                             | x: 30, y: 40, vid:1 | Salida: 102
-[PASS]  Desplazado (Y=390): Esq Sup-Izq                             | x:610, y:390, vid:1 | Salida: f35
-[PASS]  Desplazado (Y=390): Esq Inf-Der                             | x:619, y:469, vid:1 | Salida: f35
-[PASS] plazado Borde: 1px Abajo (Borde)                             | x:615, y:470, vid:1 | Salida: 667
-[PASS] lazado Borde: 1px Arriba (Fondo)                             | x:615, y:389, vid:1 | Salida: 102
-[PASS]  tapa a Linea Central (319, 236)                             | x:319, y:236, vid:1 | Salida: e73
-[PASS] Paleta 1 tapa a Pelota (25, 205)                             | x: 25, y:205, vid:1 | Salida: ff3
-[PASS]  Desplazada (10,10): Esq Sup-Izq                             | x: 10, y: 10, vid:1 | Salida: e73
-[PASS]  Desplazada (10,10): Esq Inf-Der                             | x: 19, y: 19, vid:1 | Salida: e73
-[PASS] a (10,10) Borde: 1px Izq (Borde)                             | x:  9, y: 10, vid:1 | Salida: 667
-[PASS] a (10,10) Borde: 1px Arr (Borde)                             | x: 10, y:  9, vid:1 | Salida: 667
-[PASS] ada (10,10) Borde: Fuera (Fondo)                             | x: 20, y: 20, vid:1 | Salida: 102
-[PASS] Desplazada (620,10): Esq Sup-Izq                             | x:620, y: 10, vid:1 | Salida: e73
-[PASS] Desplazada (620,10): Esq Inf-Der                             | x:629, y: 19, vid:1 | Salida: e73
-[PASS]  (620,10) Borde: 1px Der (Borde)                             | x:630, y: 10, vid:1 | Salida: 667
-[PASS]  (620,10) Borde: 1px Arr (Borde)                             | x:620, y:  9, vid:1 | Salida: 667
-[PASS] da (620,10) Borde: Fuera (Fondo)                             | x:619, y: 20, vid:1 | Salida: 102
-[PASS] Desplazada (10,460): Esq Sup-Izq                             | x: 10, y:460, vid:1 | Salida: e73
-[PASS] Desplazada (10,460): Esq Inf-Der                             | x: 19, y:469, vid:1 | Salida: e73
-[PASS]  (10,460) Borde: 1px Izq (Borde)                             | x:  9, y:460, vid:1 | Salida: 667
-[PASS]  (10,460) Borde: 1px Aba (Borde)                             | x: 10, y:470, vid:1 | Salida: 667
-[PASS] da (10,460) Borde: Fuera (Fondo)                             | x: 20, y:459, vid:1 | Salida: 102
-[PASS] esplazada (620,460): Esq Sup-Izq                             | x:620, y:460, vid:1 | Salida: e73
-[PASS] esplazada (620,460): Esq Inf-Der                             | x:629, y:469, vid:1 | Salida: e73
-[PASS] (620,460) Borde: 1px Der (Borde)                             | x:630, y:460, vid:1 | Salida: 667
-[PASS] (620,460) Borde: 1px Aba (Borde)                             | x:620, y:470, vid:1 | Salida: 667
-[PASS] a (620,460) Borde: Fuera (Fondo)                             | x:619, y:459, vid:1 | Salida: 102
-[PASS] ard: Fila y=0 sigue siendo borde                             | x:300, y:  0, vid:1 | Salida: 667
-[PASS] ard: Fila y=9 sigue siendo borde                             | x:300, y:  9, vid:1 | Salida: 667
-[PASS] Scoreboard: Esq Sup-Izq placa                                | x:222, y:  1, vid:1 | Salida: 334
-[PASS] Scoreboard: Esq Inf-Der placa                                | x:417, y:  8, vid:1 | Salida: 334
-[PASS] coreboard Borde: 1px Izq (Borde)                             | x:221, y:  4, vid:1 | Salida: 667
-[PASS] coreboard Borde: 1px Der (Borde)                             | x:418, y:  4, vid:1 | Salida: 667
-[PASS] ridad: Tapa linea central en y=4                             | x:319, y:  4, vid:1 | Salida: 334
-[PASS]  P1 Caja 0 apagada (Esq Sup-Der)                             | x:309, y:  2, vid:1 | Salida: 213
-[PASS]  P1 Caja 0 apagada (Esq Inf-Izq)                             | x:304, y:  7, vid:1 | Salida: 213
-[PASS] 1 hueco entre Caja 0 y 1 (Placa)                             | x:303, y:  4, vid:1 | Salida: 334
-[PASS] e 0-0: P1 Caja 10 ultima apagada                             | x:224, y:  4, vid:1 | Salida: 213
-[PASS]  P2 Caja 0 apagada (Esq Sup-Izq)                             | x:330, y:  2, vid:1 | Salida: 213
-[PASS]  P2 Caja 0 apagada (Esq Inf-Der)                             | x:335, y:  7, vid:1 | Salida: 213
-[PASS] 2 hueco entre Caja 0 y 1 (Placa)                             | x:336, y:  4, vid:1 | Salida: 334
-[PASS] e 0-0: P2 Caja 10 ultima apagada                             | x:415, y:  4, vid:1 | Salida: 213
-[PASS] : P1 Caja 0 encendida (Amarillo)                             | x:309, y:  4, vid:1 | Salida: ff3
-[PASS] : P1 Caja 2 encendida (Amarillo)                             | x:293, y:  4, vid:1 | Salida: ff3
-[PASS] Score 3-7: P1 Caja 3 apagada                                 | x:285, y:  4, vid:1 | Salida: 213
-[PASS]  3-7: P2 Caja 0 encendida (Rojo)                             | x:330, y:  4, vid:1 | Salida: f35
-[PASS]  3-7: P2 Caja 6 encendida (Rojo)                             | x:378, y:  4, vid:1 | Salida: f35
-[PASS] Score 3-7: P2 Caja 7 apagada                                 | x:386, y:  4, vid:1 | Salida: 213
-[PASS] -11: P1 Caja 10 maxima encendida                             | x:224, y:  4, vid:1 | Salida: ff3
-[PASS] -11: P2 Caja 10 maxima encendida                             | x:415, y:  4, vid:1 | Salida: f35
-[PASS] Video apagado sobre marcador                                 | x:309, y:  4, vid:0 | Salida: 000
+[PASS] Video apagado en P1                      | x: 20, y:200, st:01 | Salida: 000
+[PASS] Video apagado en Pelota                  | x:315, y:235, st:01 | Salida: 000
+[PASS] Borde: Esq Sup-Izq exterior              | x:  0, y:  0, st:01 | Salida: 667
+[PASS] Fondo: Esq Sup-Izq interior              | x: 10, y: 10, st:01 | Salida: 102
+[PASS] Fondo: Zona libre                        | x:100, y:100, st:01 | Salida: 102
+[PASS] P1: Esquina Sup-Izq                      | x: 20, y:200, st:01 | Salida: ff3
+[PASS] P1: Esquina Inf-Der                      | x: 29, y:279, st:01 | Salida: ff3
+[PASS] P1 Borde: 1px Izquierda                  | x: 19, y:240, st:01 | Salida: 102
+[PASS] P1 Borde: 1px Derecha                    | x: 30, y:240, st:01 | Salida: 102
+[PASS] P1 Borde: 1px Arriba                     | x: 25, y:199, st:01 | Salida: 102
+[PASS] P1 Borde: 1px Abajo                      | x: 25, y:280, st:01 | Salida: 102
+[PASS] P2: Esquina Sup-Izq                      | x:610, y:200, st:01 | Salida: f35
+[PASS] P2: Esquina Inf-Der                      | x:619, y:279, st:01 | Salida: f35
+[PASS] P2 Borde: 1px Izquierda                  | x:609, y:240, st:01 | Salida: 102
+[PASS] P2 Borde: 1px Derecha                    | x:620, y:240, st:01 | Salida: 102
+[PASS] P2 Borde: 1px Arriba                     | x:615, y:199, st:01 | Salida: 102
+[PASS] P2 Borde: 1px Abajo                      | x:615, y:280, st:01 | Salida: 102
+[PASS] Pelota (Centro): Esq Sup-Izq             | x:315, y:235, st:01 | Salida: e73
+[PASS] Pelota (Centro): Esq Inf-Der             | x:324, y:244, st:01 | Salida: e73
+[PASS] Pelota Borde: 1px Izquierda              | x:314, y:240, st:01 | Salida: 102
+[PASS] Pelota Borde: 1px Derecha                | x:325, y:240, st:01 | Salida: 102
+[PASS] Pelota Borde: 1px Arriba                 | x:317, y:234, st:01 | Salida: 102
+[PASS] Pelota Borde: 1px Abajo                  | x:317, y:245, st:01 | Salida: 102
+[PASS] Linea Central: Tramo ON sup              | x:319, y: 20, st:01 | Salida: 667
+[PASS] Linea Central: Tramo OFF sup             | x:319, y: 24, st:01 | Salida: 102
+[PASS] Linea Central: Espejo Inf                | x:319, y:459, st:01 | Salida: 667
+[PASS] Linea Borde: 1px Izquierda               | x:318, y: 20, st:01 | Salida: 102
+[PASS] Linea Borde: 1px Derecha                 | x:321, y: 20, st:01 | Salida: 102
+[PASS] P1 Desplazado (Y=10): Sup-Izq            | x: 20, y: 10, st:01 | Salida: ff3
+[PASS] P1 Desplazado (Y=10): Inf-Der            | x: 29, y: 89, st:01 | Salida: ff3
+[PASS] P1 Desplazado: 1px Abajo                 | x: 25, y: 90, st:01 | Salida: 102
+[PASS] P1 Desplazado: 1px Izquierda             | x: 19, y: 40, st:01 | Salida: 102
+[PASS] P1 Desplazado: 1px Derecha               | x: 30, y: 40, st:01 | Salida: 102
+[PASS] P2 Desplazado (Y=390): Sup-Izq           | x:610, y:390, st:01 | Salida: f35
+[PASS] P2 Desplazado (Y=390): Inf-Der           | x:619, y:469, st:01 | Salida: f35
+[PASS] P2 Desplazado: 1px Aba (Borde)           | x:615, y:470, st:01 | Salida: 667
+[PASS] P2 Desplazado: 1px Arr (Fondo)           | x:615, y:389, st:01 | Salida: 102
+[PASS] Prioridad: Pelota tapa linea             | x:319, y:236, st:01 | Salida: e73
+[PASS] Prioridad: P1 tapa pelota                | x: 25, y:205, st:01 | Salida: ff3
+[PASS] Pelota (10,10): Esq Sup-Izq              | x: 10, y: 10, st:01 | Salida: e73
+[PASS] Pelota (10,10): Esq Inf-Der              | x: 19, y: 19, st:01 | Salida: e73
+[PASS] Pelota (10,10): 1px Izq (Borde)          | x:  9, y: 10, st:01 | Salida: 667
+[PASS] Pelota (10,10): 1px Arr (Borde)          | x: 10, y:  9, st:01 | Salida: 667
+[PASS] Pelota (10,10): Fuera (Fondo)            | x: 20, y: 20, st:01 | Salida: 102
+[PASS] Pelota (620,10): Esq Sup-Izq             | x:620, y: 10, st:01 | Salida: e73
+[PASS] Pelota (620,10): Esq Inf-Der             | x:629, y: 19, st:01 | Salida: e73
+[PASS] Pelota (620,10): 1px Der (Borde)         | x:630, y: 10, st:01 | Salida: 667
+[PASS] Pelota (620,10): 1px Arr (Borde)         | x:620, y:  9, st:01 | Salida: 667
+[PASS] Pelota (620,10): Fuera (Fondo)           | x:619, y: 20, st:01 | Salida: 102
+[PASS] Pelota (10,460): Esq Sup-Izq             | x: 10, y:460, st:01 | Salida: e73
+[PASS] Pelota (10,460): Esq Inf-Der             | x: 19, y:469, st:01 | Salida: e73
+[PASS] Pelota (10,460): 1px Izq (Borde)         | x:  9, y:460, st:01 | Salida: 667
+[PASS] Pelota (10,460): 1px Aba (Borde)         | x: 10, y:470, st:01 | Salida: 667
+[PASS] Pelota (10,460): Fuera (Fondo)           | x: 20, y:459, st:01 | Salida: 102
+[PASS] Pelota (620,460): Esq Sup-Izq            | x:620, y:460, st:01 | Salida: e73
+[PASS] Pelota (620,460): Esq Inf-Der            | x:629, y:469, st:01 | Salida: e73
+[PASS] Pelota (620,460): 1px Der (Borde)        | x:630, y:460, st:01 | Salida: 667
+[PASS] Pelota (620,460): 1px Aba (Borde)        | x:620, y:470, st:01 | Salida: 667
+[PASS] Pelota (620,460): Fuera (Fondo)          | x:619, y:459, st:01 | Salida: 102
+[PASS] Scoreboard: Fila y=0 borde               | x:300, y:  0, st:01 | Salida: 667
+[PASS] Scoreboard: Fila y=9 borde               | x:300, y:  9, st:01 | Salida: 667
+[PASS] Scoreboard: Esq Sup-Izq placa            | x:222, y:  1, st:01 | Salida: 334
+[PASS] Scoreboard: Esq Inf-Der placa            | x:417, y:  8, st:01 | Salida: 334
+[PASS] Scoreboard: 1px Izq (Borde)              | x:221, y:  4, st:01 | Salida: 667
+[PASS] Scoreboard: 1px Der (Borde)              | x:418, y:  4, st:01 | Salida: 667
+[PASS] Scoreboard: Tapa linea central           | x:319, y:  4, st:01 | Salida: 334
+[PASS] Score 0-0: P1 Caja 0 apagada             | x:309, y:  2, st:01 | Salida: 213
+[PASS] Score 0-0: P1 Caja 0 Inf-Izq             | x:304, y:  7, st:01 | Salida: 213
+[PASS] Score 0-0: P1 hueco entre cajas          | x:303, y:  4, st:01 | Salida: 334
+[PASS] Score 0-0: P1 Caja 10 apagada            | x:224, y:  4, st:01 | Salida: 213
+[PASS] Score 0-0: P2 Caja 0 apagada             | x:330, y:  2, st:01 | Salida: 213
+[PASS] Score 0-0: P2 Caja 0 Inf-Der             | x:335, y:  7, st:01 | Salida: 213
+[PASS] Score 0-0: P2 hueco entre cajas          | x:336, y:  4, st:01 | Salida: 334
+[PASS] Score 0-0: P2 Caja 10 apagada            | x:415, y:  4, st:01 | Salida: 213
+[PASS] Score 3-7: P1 Caja 0 encendida           | x:309, y:  4, st:01 | Salida: ff3
+[PASS] Score 3-7: P1 Caja 2 encendida           | x:293, y:  4, st:01 | Salida: ff3
+[PASS] Score 3-7: P1 Caja 3 apagada             | x:285, y:  4, st:01 | Salida: 213
+[PASS] Score 3-7: P2 Caja 0 encendida           | x:330, y:  4, st:01 | Salida: f35
+[PASS] Score 3-7: P2 Caja 6 encendida           | x:378, y:  4, st:01 | Salida: f35
+[PASS] Score 3-7: P2 Caja 7 apagada             | x:386, y:  4, st:01 | Salida: 213
+[PASS] Score 11-11: P1 Caja 10 encendida        | x:224, y:  4, st:01 | Salida: ff3
+[PASS] Score 11-11: P2 Caja 10 encendida        | x:415, y:  4, st:01 | Salida: f35
+[PASS] Video apagado sobre marcador             | x:309, y:  4, st:01 | Salida: 000
+[PASS] REPOSO: 1px Izq fuera panel              | x:239, y:240, st:00 | Salida: 102
+[PASS] REPOSO: Marco Esq Sup-Izq                | x:240, y:180, st:00 | Salida: fff
+[PASS] REPOSO: Marco Izq ultimo px (244)        | x:244, y:240, st:00 | Salida: fff
+[PASS] REPOSO: 1px dentro marco Izq (245)       | x:245, y:240, st:00 | Salida: 28c
+[PASS] REPOSO: 1px Der fuera panel              | x:400, y:240, st:00 | Salida: 102
+[PASS] REPOSO: Marco Esq Inf-Der                | x:399, y:299, st:00 | Salida: fff
+[PASS] REPOSO: Marco Der primer px (395)        | x:395, y:240, st:00 | Salida: fff
+[PASS] REPOSO: 1px dentro marco Der (394)       | x:394, y:240, st:00 | Salida: 28c
+[PASS] REPOSO: 1px Arr fuera panel              | x:300, y:179, st:00 | Salida: 102
+[PASS] REPOSO: Marco Sup ultimo px (184)        | x:300, y:184, st:00 | Salida: fff
+[PASS] REPOSO: 1px dentro marco Sup (185)       | x:300, y:185, st:00 | Salida: 28c
+[PASS] REPOSO: 1px Aba fuera panel              | x:300, y:300, st:00 | Salida: 102
+[PASS] REPOSO: Marco Inf primer px (295)        | x:300, y:295, st:00 | Salida: fff
+[PASS] REPOSO: 1px dentro marco Inf (294)       | x:300, y:294, st:00 | Salida: 28c
+[PASS] REPOSO: Icono Esq Sup-Izq                | x:280, y:210, st:00 | Salida: fff
+[PASS] REPOSO: Icono Esq Inf-Der                | x:359, y:269, st:00 | Salida: fff
+[PASS] REPOSO: Icono 1px Izq (279)              | x:279, y:240, st:00 | Salida: 28c
+[PASS] REPOSO: Icono 1px Der (360)              | x:360, y:240, st:00 | Salida: 28c
+[PASS] REPOSO: Icono 1px Arr (209)              | x:320, y:209, st:00 | Salida: 28c
+[PASS] REPOSO: Icono 1px Aba (270)              | x:320, y:270, st:00 | Salida: 28c
+[PASS] REPOSO: Panel tapa pelota centro         | x:315, y:235, st:00 | Salida: fff
+[PASS] REPOSO: Linea central visible            | x:319, y:175, st:00 | Salida: 667
+[PASS] REPOSO: Paleta P1 visible                | x: 20, y:200, st:00 | Salida: ff3
+[PASS] REPOSO: Paleta P2 visible                | x:610, y:200, st:00 | Salida: f35
+[PASS] REPOSO: Marcador en 0 visible            | x:309, y:  4, st:00 | Salida: 213
+[PASS] GAME_OVER P1: Marco blanco               | x:240, y:180, st:10 | Salida: fff
+[PASS] GAME_OVER P1: Fondo amarillo P1          | x:250, y:200, st:10 | Salida: ff3
+[PASS] GAME_OVER P1: 1 Tronco Sup-Izq           | x:313, y:205, st:10 | Salida: 102
+[PASS] GAME_OVER P1: 1 Tronco Sup-Der           | x:326, y:205, st:10 | Salida: 102
+[PASS] GAME_OVER P1: 1px Arr tronco             | x:320, y:204, st:10 | Salida: ff3
+[PASS] GAME_OVER P1: 1px Izq tronco             | x:312, y:240, st:10 | Salida: ff3
+[PASS] GAME_OVER P1: 1px Der tronco             | x:327, y:240, st:10 | Salida: ff3
+[PASS] GAME_OVER P1: 1 Visera Sup-Izq           | x:299, y:219, st:10 | Salida: 102
+[PASS] GAME_OVER P1: 1 Visera Inf-Der           | x:312, y:232, st:10 | Salida: 102
+[PASS] GAME_OVER P1: 1px Izq visera             | x:298, y:225, st:10 | Salida: ff3
+[PASS] GAME_OVER P1: 1px Arr visera             | x:305, y:218, st:10 | Salida: ff3
+[PASS] GAME_OVER P1: 1px Aba visera             | x:305, y:233, st:10 | Salida: ff3
+[PASS] GAME_OVER P1: 1 Base Sup-Izq             | x:299, y:261, st:10 | Salida: 102
+[PASS] GAME_OVER P1: 1 Base Inf-Der             | x:340, y:274, st:10 | Salida: 102
+[PASS] GAME_OVER P1: 1px Izq base               | x:298, y:268, st:10 | Salida: ff3
+[PASS] GAME_OVER P1: 1px Der base               | x:341, y:268, st:10 | Salida: ff3
+[PASS] GAME_OVER P1: 1px Arr base               | x:305, y:260, st:10 | Salida: ff3
+[PASS] GAME_OVER P1: 1px Aba base               | x:320, y:275, st:10 | Salida: ff3
+[PASS] GAME_OVER P2: Fondo rojo P2              | x:250, y:200, st:10 | Salida: f35
+[PASS] GAME_OVER P2: 2 Esq Sup-Izq              | x:299, y:205, st:10 | Salida: 102
+[PASS] GAME_OVER P2: 2 Esq Inf-Der              | x:340, y:274, st:10 | Salida: 102
+[PASS] GAME_OVER P2: 1px Arr barra sup          | x:320, y:204, st:10 | Salida: f35
+[PASS] GAME_OVER P2: 1px Aba barra inf          | x:320, y:275, st:10 | Salida: f35
+[PASS] GAME_OVER P2: 1px Izq bajada             | x:298, y:255, st:10 | Salida: f35
+[PASS] GAME_OVER P2: 1px Der bajada             | x:341, y:225, st:10 | Salida: f35
+[PASS] GAME_OVER P2: 2 Barra sup (218)          | x:305, y:218, st:10 | Salida: 102
+[PASS] GAME_OVER P2: Hueco sup-izq (219)        | x:305, y:219, st:10 | Salida: f35
+[PASS] GAME_OVER P2: 1px Arr barra med          | x:305, y:232, st:10 | Salida: f35
+[PASS] GAME_OVER P2: 2 Barra med (233)          | x:305, y:233, st:10 | Salida: 102
+[PASS] GAME_OVER P2: 1px Izq bajada der         | x:326, y:225, st:10 | Salida: f35
+[PASS] GAME_OVER P2: 2 Bajada der (327)         | x:327, y:225, st:10 | Salida: 102
+[PASS] GAME_OVER P2: 2 Barra med (246)          | x:330, y:246, st:10 | Salida: 102
+[PASS] GAME_OVER P2: 1px Aba barra med          | x:330, y:247, st:10 | Salida: f35
+[PASS] GAME_OVER P2: Hueco inf-der (260)        | x:330, y:260, st:10 | Salida: f35
+[PASS] GAME_OVER P2: 2 Barra inf (261)          | x:330, y:261, st:10 | Salida: 102
+[PASS] GAME_OVER P2: 2 Bajada izq (312)         | x:312, y:255, st:10 | Salida: 102
+[PASS] GAME_OVER P2: 1px Der bajada izq         | x:313, y:255, st:10 | Salida: f35
+[PASS] GAME_OVER: Respaldo sin ganador          | x:320, y:240, st:10 | Salida: 667
+[PASS] Estado 2'b11: Fondo REPOSO               | x:250, y:200, st:11 | Salida: 28c
+[PASS] Estado 2'b11: Icono REPOSO               | x:320, y:240, st:11 | Salida: fff
+[PASS] Video apagado sobre panel                | x:320, y:240, st:11 | Salida: 000
 === Simulacion Finalizada ===
 EXITO: TODOS LOS TESTS PASARON (0 ERRORES)
-tb/pixel_gen_tb.v:219: $finish called at 830000 (1ps)
+tb/pixel_gen_tb.v:331: $finish called at 1490000 (1ps)

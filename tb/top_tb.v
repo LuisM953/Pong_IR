@@ -2,7 +2,7 @@
 
 module top_pong_tb;
 
-    // Codigos NEC actualizados segun ir_decoder.v
+    // Codigos NEC segun ir_decoder.v
     localparam [7:0] NEC_ADDR    = 8'h00,
                      CMD_P1_UP   = 8'h02,
                      CMD_P2_DOWN = 8'h1D,
@@ -22,8 +22,8 @@ module top_pong_tb;
     wire [11:0] rgb;
 
     integer error_count = 0;
-    integer timeout_ciclos; // Contador limite para esperar propagacion de ir_decoder -> game_fsm
-    reg [9:0] p1_y_prev, p2_y_prev, ball_x_prev, ball_y_prev; // Captura de posiciones para verificar bloqueo/movimiento
+    integer timeout_ciclos;
+    reg [9:0] p1_y_prev, p2_y_prev, ball_x_prev, ball_y_prev;
 
     top_pong #(
         .CALIB_FRAMES(0) // Omitir calibracion inicial para simular el juego directamente
@@ -43,9 +43,9 @@ module top_pong_tb;
 
     always #5 clk = ~clk;
 
-    // Temporizador de seguridad ampliado a 1000 ms para cubrir las 4 tramas NEC (~690 ms totales)
+    // Temporizador de seguridad de 1000 ms para cubrir las 4 tramas NEC y barridos VGA
     initial begin
-        #1000000000; // 1000 ms en nanosegundos
+        #1000000000;
         $display("[FAIL] TIMEOUT: La simulacion tardo mas de 1000 ms. Revisa frame_tick, ir_decoder o game_fsm.");
         $finish;
     end
@@ -113,18 +113,18 @@ module top_pong_tb;
         end
     endtask
 
-    // Comprobacion continua de Salida de Video (Blanking)
+    // Comprobacion continua de Salida de Video (Blanking y pelota en JUGANDO)
     always @(posedge clk) begin
         if (!reset) begin
-            // Durante el blanking (video_on = 0), el rgb debe ser 000 siempre.
+            // Durante el blanking (video_on = 0), el rgb debe ser 000 siempre
             if (dut.video_on == 1'b0) begin
                 if (rgb !== 12'h000) begin
                     $display("[FAIL] Blanking: rgb = %h (Esperado: 000) en x:%0d, y:%0d", rgb, dut.x, dut.y);
                     error_count = error_count + 1;
                 end
             end 
-            // Integracion RGB Pelota (esquina superior izq)
-            else if (dut.x == dut.ball_x && dut.y == dut.ball_y) begin 
+            // Integracion RGB Pelota (esquina superior izq) solo cuando el juego esta activo (JUGANDO)
+            else if (dut.state == 2'b01 && dut.x == dut.ball_x && dut.y == dut.ball_y) begin 
                 if (rgb !== 12'hE73) begin
                     $display("[FAIL] Integracion Pelota: rgb = %h (Esperado: E73) en x:%0d, y:%0d", rgb, dut.x, dut.y);
                     error_count = error_count + 1;
@@ -147,8 +147,6 @@ module top_pong_tb;
         reset = 0;
         #10;
         
-        // Comprobar que al soltar el reset las paletas valen 200 y la pelota esta en el centro (315, 235)
-        // Verificar tambien marcador inicial 0-0, banderas de victoria en 0, salidas IR en reposo y FSM en REPOSO
         if (dut.p1_y === 10'd200 && dut.p2_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235 &&
             dut.goal_p1 === 1'b0 && dut.goal_p2 === 1'b0 &&
             dut.score_p1 === 4'd0 && dut.score_p2 === 4'd0 && dut.win_p1 === 1'b0 && dut.win_p2 === 1'b0 &&
@@ -160,6 +158,25 @@ module top_pong_tb;
                      dut.p1_y, dut.p2_y, dut.ball_x, dut.ball_y, dut.score_p1, dut.score_p2,
                      dut.maquina_juego.state, dut.game_enable, dut.clear);
             error_count = error_count + 1;
+        end
+
+        // Verificar integracion RGB del cartel de REPOSO en pantalla
+        wait (dut.x == 10'd245 && dut.y == 10'd240);
+        #1;
+        if (rgb !== 12'h28C) begin
+            $display("[FAIL] Integracion RGB REPOSO fondo: rgb = %h (Esp: 28C) en (245, 240)", rgb);
+            error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Integracion RGB REPOSO fondo: Panel cian visible (28C)");
+        end
+
+        wait (dut.x == 10'd315 && dut.y == 10'd235);
+        #1;
+        if (rgb !== 12'hFFF) begin
+            $display("[FAIL] Integracion RGB REPOSO icono: rgb = %h (Esp: FFF) en (315, 235)", rgb);
+            error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Integracion RGB REPOSO icono: Icono blanco cubre pelota en (315, 235)");
         end
 
         // --- Prueba 1B: FSM en REPOSO (antes de START) bloquea movimiento por IR y pelota ---
@@ -185,7 +202,6 @@ module top_pong_tb;
         $display("--- Enviando trama NEC START (8'h57) para iniciar partida ---");
         enviar_trama_nec(NEC_ADDR, CMD_START);
 
-        // Esperar propagacion sincronizador -> ir_decoder -> game_fsm (con limite de 50 ciclos, sin gastar frame_tick)
         timeout_ciclos = 0;
         while (dut.game_enable !== 1'b1 && timeout_ciclos < 50) begin
             @(posedge clk);
@@ -209,7 +225,7 @@ module top_pong_tb;
         // Primer frame_tick
         @(posedge dut.frame_tick);
         @(posedge clk); 
-        #1; // Esperar 1 ns despues del flanco para leer el registro ya actualizado
+        #1;
         
         if (dut.p1_y === 10'd196 && dut.p2_y === 10'd200 && dut.ball_x === 10'd313 && dut.ball_y === 10'd233) begin
             $display("[PASS] up_p1 (Frame 1): p1_y = 196, p2_y = 200, pelota = (313, 233)");
@@ -222,7 +238,7 @@ module top_pong_tb;
         // Segundo frame_tick
         @(posedge dut.frame_tick);
         @(posedge clk);
-        #1; // Retardo para leer correctamente
+        #1;
         
         if (dut.p1_y === 10'd192 && dut.p2_y === 10'd200 && dut.ball_x === 10'd311 && dut.ball_y === 10'd231) begin
             $display("[PASS] up_p1 (Frame 2): p1_y = 192, p2_y = 200, pelota = (311, 231)");
@@ -232,19 +248,16 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
         
-        // Al apagar el boton aqui (1 ns despues del flanco), evitamos la carrera del caso 2.
         up_p1 = 0; 
 
         // --- Prueba 3: Los dos jugadores (Jugador 2) ---
         $display("--- Probando down_p2 (Jugador 2) ---");
-        
-        // Al encender el boton aqui, lo hacemos lejos del flanco anterior.
         down_p2 = 1; 
         
         // Tercer frame_tick
         @(posedge dut.frame_tick);
         @(posedge clk);
-        #1; // Retardo para leer correctamente
+        #1;
         
         if (dut.p1_y === 10'd192 && dut.p2_y === 10'd204 && dut.ball_x === 10'd309 && dut.ball_y === 10'd229) begin
             $display("[PASS] down_p2 (Frame 3): p1_y = 192, p2_y = 204, pelota = (309, 229)");
@@ -256,10 +269,9 @@ module top_pong_tb;
         
         down_p2 = 0; 
 
-        // Prueba 4: Integración Hitbox en Top (Rebote cruzando la paleta 1 en 2 pasos) ---
+        // --- Prueba 4: Integracion Hitbox en Top (Rebote cruzando la paleta 1 en 2 pasos) ---
         $display("--- Probando integracion de Hitbox en Top ---");
         
-        // Posición previa al flanco en x = 31
         dut.movimiento_pelota.ball_x = 10'd31;
         dut.movimiento_pelota.ball_y = 10'd200;
         dut.movimiento_pelota.dir_x  = 1'b1;
@@ -297,7 +309,7 @@ module top_pong_tb;
         dut.movimiento_pelota.ball_y = 10'd100;
         dut.movimiento_pelota.dir_x  = 1'b1;
         dut.movimiento_pelota.dir_y  = 1'b0;
-        dut.paddle1.y                = 10'd300; // Paleta 1 lejos para asegurar que no haya rebote
+        dut.paddle1.y                = 10'd300;
 
         @(posedge dut.frame_tick);
         @(posedge clk);
@@ -346,7 +358,7 @@ module top_pong_tb;
         dut.movimiento_pelota.ball_y = 10'd100;
         dut.movimiento_pelota.dir_x  = 1'b0;
         dut.movimiento_pelota.dir_y  = 1'b0;
-        dut.paddle2.y                = 10'd300; // Paleta 2 lejos para asegurar que no haya rebote
+        dut.paddle2.y                = 10'd300;
 
         @(posedge dut.frame_tick);
         @(posedge clk);
@@ -384,15 +396,12 @@ module top_pong_tb;
         // --- Prueba 6: Integracion Control IR de punta a punta (ir_rx -> ir_decoder -> paddle1) ---
         $display("--- Probando integracion de Control IR por ir_rx en Top ---");
 
-        // Ambas paletas parten en y = 300 tras la Prueba 5; botones fisicos en 0
         enviar_trama_nec(NEC_ADDR, CMD_P1_UP);
 
-        // Esperar el siguiente frame_tick tras finalizar la trama para asegurar el desplazamiento de paddle1
         @(posedge dut.frame_tick);
         @(posedge clk);
         #1;
 
-        // Verificacion estricta de comando_actual === CMD_P1_UP (8'h02), p1_y === 296 y sin cruce en p2_y === 300
         if (comando_actual === CMD_P1_UP && dut.p1_y === 10'd296 && dut.p2_y === 10'd300) begin
             $display("[PASS] Integracion IR (Valida): cmd = %h, p1_y = 296, p2_y = 300 (sin cruce)", comando_actual);
         end else begin
@@ -453,14 +462,12 @@ module top_pong_tb;
         dut.movimiento_pelota.ball_y = 10'd100;
         dut.movimiento_pelota.dir_x  = 1'b0;
         dut.movimiento_pelota.dir_y  = 1'b0;
-        dut.paddle2.y                = 10'd300; // Paleta 2 lejos del gol
+        dut.paddle2.y                = 10'd300;
 
-        // Frame de gol: pelota entra en pared derecha y dispara goal_p1
         @(posedge dut.frame_tick);
         @(posedge clk);
         #1;
 
-        // Esperar propagacion a score (11), win_p1 (1) y FSM (GAME_OVER = 2'b10)
         repeat (2) @(posedge clk);
         #1;
 
@@ -471,6 +478,25 @@ module top_pong_tb;
             $display("[FAIL] Victoria P1: score_p1=%0d (Esp:11), win_p1=%b (Esp:1), state=%b (Esp:10), en=%b",
                      dut.score_p1, dut.win_p1, dut.maquina_juego.state, dut.game_enable);
             error_count = error_count + 1;
+        end
+
+        // Verificar integracion RGB del panel GAME_OVER para P1 (fondo amarillo FF3 y digito 1 en 102)
+        wait (dut.x == 10'd250 && dut.y == 10'd200);
+        #1;
+        if (rgb !== 12'hFF3) begin
+            $display("[FAIL] Integracion RGB GAME_OVER P1 fondo: rgb = %h (Esp: FF3) en (250, 200)", rgb);
+            error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Integracion RGB GAME_OVER P1 fondo: Panel amarillo P1 (FF3)");
+        end
+
+        wait (dut.x == 10'd320 && dut.y == 10'd240);
+        #1;
+        if (rgb !== 12'h102) begin
+            $display("[FAIL] Integracion RGB GAME_OVER P1 digito: rgb = %h (Esp: 102) en (320, 240)", rgb);
+            error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Integracion RGB GAME_OVER P1 digito: Digito 1 dibujado (102)");
         end
 
         // Comprobar congelamiento de paletas y pelota en GAME_OVER durante el siguiente frame_tick
@@ -496,26 +522,24 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // MODIFICADO: Caso 7C: START en GAME_OVER -> vuelve a REPOSO (00) con clear=1, marcador 0-0, paletas en 200 y pelota en (315,235)
-        // Desplazar pelota fuera del centro antes de START para comprobar que clear la recentra
-        dut.movimiento_pelota.ball_x = 10'd180; // MODIFICADO
-        dut.movimiento_pelota.ball_y = 10'd140; // MODIFICADO
+        // Caso 7C: START en GAME_OVER -> vuelve a REPOSO (00) con clear=1, marcador 0-0, paletas en 200 y pelota en (315,235)
+        dut.movimiento_pelota.ball_x = 10'd180;
+        dut.movimiento_pelota.ball_y = 10'd140;
 
         force dut.ir_start = 1'b1;
         @(posedge clk);
         #1;
         release dut.ir_start;
 
-        // Un ciclo adicional para que score, paddle_move y ball_move registren clear=1
         @(posedge clk);
         #1;
 
         if (dut.maquina_juego.state === 2'b00 && dut.clear === 1'b1 && dut.game_enable === 1'b0 &&
             dut.score_p1 === 4'd0 && dut.score_p2 === 4'd0 && dut.win_p1 === 1'b0 && dut.win_p2 === 1'b0 &&
-            dut.p1_y === 10'd200 && dut.p2_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235) begin // MODIFICADO
-            $display("[PASS] START en GAME_OVER: FSM en REPOSO (00), marcador 0-0, paletas=(200,200), pelota=(315,235)"); // MODIFICADO
+            dut.p1_y === 10'd200 && dut.p2_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235) begin
+            $display("[PASS] START en GAME_OVER: FSM en REPOSO (00), marcador 0-0, paletas=(200,200), pelota=(315,235)");
         end else begin
-            $display("[FAIL] START en GAME_OVER: state=%b, score=%0d-%0d, paletas=(%0d,%0d) [Esp:200,200], pelota=(%0d,%0d) [Esp:315,235]", // MODIFICADO
+            $display("[FAIL] START en GAME_OVER: state=%b, score=%0d-%0d, paletas=(%0d,%0d) [Esp:200,200], pelota=(%0d,%0d) [Esp:315,235]",
                      dut.maquina_juego.state, dut.score_p1, dut.score_p2,
                      dut.p1_y, dut.p2_y, dut.ball_x, dut.ball_y);
             error_count = error_count + 1;
@@ -532,14 +556,12 @@ module top_pong_tb;
         dut.movimiento_pelota.ball_y = 10'd100;
         dut.movimiento_pelota.dir_x  = 1'b1;
         dut.movimiento_pelota.dir_y  = 1'b0;
-        dut.paddle1.y                = 10'd300; // Paleta 1 lejos para asegurar gol en pared izquierda
+        dut.paddle1.y                = 10'd300;
 
-        // Frame de gol: pelota entra en pared izquierda y dispara goal_p2
         @(posedge dut.frame_tick);
         @(posedge clk);
         #1;
 
-        // Esperar propagacion a score (11), win_p2 (1) y FSM (GAME_OVER = 2'b10)
         repeat (2) @(posedge clk);
         #1;
 
@@ -552,10 +574,29 @@ module top_pong_tb;
             error_count = error_count + 1;
         end
 
-        // MODIFICADO: Volver a REPOSO con ir_start y verificar marcador 0-0, paletas en 200 y pelota en (315,235)
-        dut.paddle2.y                = 10'd150; // MODIFICADO: Desplazar P2 para verificar reset por clear
-        dut.movimiento_pelota.ball_x = 10'd420; // MODIFICADO: Desplazar pelota para verificar reset por clear
-        dut.movimiento_pelota.ball_y = 10'd310; // MODIFICADO
+        // Verificar integracion RGB del panel GAME_OVER para P2 (fondo rojo F35 y digito 2 en 102)
+        wait (dut.x == 10'd250 && dut.y == 10'd200);
+        #1;
+        if (rgb !== 12'hF35) begin
+            $display("[FAIL] Integracion RGB GAME_OVER P2 fondo: rgb = %h (Esp: F35) en (250, 200)", rgb);
+            error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Integracion RGB GAME_OVER P2 fondo: Panel rojo P2 (F35)");
+        end
+
+        wait (dut.x == 10'd320 && dut.y == 10'd240);
+        #1;
+        if (rgb !== 12'h102) begin
+            $display("[FAIL] Integracion RGB GAME_OVER P2 digito: rgb = %h (Esp: 102) en (320, 240)", rgb);
+            error_count = error_count + 1;
+        end else begin
+            $display("[PASS] Integracion RGB GAME_OVER P2 digito: Digito 2 dibujado (102)");
+        end
+
+        // Volver a REPOSO con ir_start y verificar marcador 0-0, paletas en 200 y pelota en (315,235)
+        dut.paddle2.y                = 10'd150;
+        dut.movimiento_pelota.ball_x = 10'd420;
+        dut.movimiento_pelota.ball_y = 10'd310;
 
         force dut.ir_start = 1'b1;
         @(posedge clk);
@@ -567,10 +608,10 @@ module top_pong_tb;
 
         if (dut.maquina_juego.state === 2'b00 && dut.clear === 1'b1 && dut.game_enable === 1'b0 &&
             dut.score_p1 === 4'd0 && dut.score_p2 === 4'd0 && dut.win_p1 === 1'b0 && dut.win_p2 === 1'b0 &&
-            dut.p1_y === 10'd200 && dut.p2_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235) begin // MODIFICADO
-            $display("[PASS] Reinicio tras Victoria P2: FSM en REPOSO (00), marcador 0-0, paletas=(200,200), pelota=(315,235)"); // MODIFICADO
+            dut.p1_y === 10'd200 && dut.p2_y === 10'd200 && dut.ball_x === 10'd315 && dut.ball_y === 10'd235) begin
+            $display("[PASS] Reinicio tras Victoria P2: FSM en REPOSO (00), marcador 0-0, paletas=(200,200), pelota=(315,235)");
         end else begin
-            $display("[FAIL] Reinicio tras Victoria P2: state=%b, score=%0d-%0d, paletas=(%0d,%0d) [Esp:200,200], pelota=(%0d,%0d) [Esp:315,235]", // MODIFICADO
+            $display("[FAIL] Reinicio tras Victoria P2: state=%b, score=%0d-%0d, paletas=(%0d,%0d) [Esp:200,200], pelota=(%0d,%0d) [Esp:315,235]",
                      dut.maquina_juego.state, dut.score_p1, dut.score_p2,
                      dut.p1_y, dut.p2_y, dut.ball_x, dut.ball_y);
             error_count = error_count + 1;

@@ -28,12 +28,17 @@ module top_pong #(
                 BALL_SPEED    = 2,
                 MAX_SCORE     = 11, //MAXIMO 15, por el ancho de 4 bits de los contadores de score
                 BOX_SIZE      = 6,
-                BOX_MARGIN    = 2;  // Restriccion -> BOX_SIZE + BOX_MARGIN (BOX_STEP) debe ser potencia de 2 (ej. 4, 8, 16)
+                BOX_MARGIN    = 2,  // Restriccion -> BOX_SIZE + BOX_MARGIN (BOX_STEP) debe ser potencia de 2 (ej. 4, 8, 16)
+                PANEL_BORDER  = 5,
+                REPOSO        = 2'b00,
+                JUGANDO       = 2'b01,
+                GAME_OVER     = 2'b10; 
 
     wire video_on, frame_tick, hit_p1, hit_p2, goal_p1, goal_p2, win_p1, win_p2;
     wire ir_p1_up, ir_p1_down, ir_p2_up, ir_p2_down, ir_start, game_enable, clear;
     wire [9:0] x, y, p1_y, p2_y, ball_x, ball_y;
     wire [3:0] score_p1, score_p2;
+    wire [1:0] state;
 
     vga_sync controlador_vga (
         .clk(clk),
@@ -107,7 +112,10 @@ module top_pong #(
         .BORDER_W(BORDER_W),
         .MAX_SCORE(MAX_SCORE),
         .BOX_SIZE(BOX_SIZE),
-        .BOX_MARGIN(BOX_MARGIN)
+        .BOX_MARGIN(BOX_MARGIN),
+        .PANEL_BORDER(PANEL_BORDER),
+        .JUGANDO(JUGANDO),
+        .GAME_OVER(GAME_OVER)
     ) generador_imagen (
         .x(x),
         .y(y),
@@ -118,6 +126,9 @@ module top_pong #(
         .ball_y(ball_y),
         .score_p1(score_p1),
         .score_p2(score_p2),
+        .state(state),
+        .win_p1(win_p1),
+        .win_p2(win_p2),
         .rgb(rgb_juego)
     );
 
@@ -186,15 +197,19 @@ module top_pong #(
         .ir_start(ir_start)        // Pulso de 1 ciclo para iniciar partida
     );
 
-    game_fsm maquina_juego (
+    game_fsm #(
+        .REPOSO(REPOSO),
+        .JUGANDO(JUGANDO),
+        .GAME_OVER(GAME_OVER)
+    ) maquina_juego (
         .clk(clk),
         .reset(reset),
         .win_p1(win_p1),
         .win_p2(win_p2),
         .ir_start(ir_start),       // Pulso de 1 ciclo desde ir_decoder
-        .clear(clear),                  // Limpia el marcador al iniciar partida
+        .clear(clear),             // Limpia el marcador al iniciar partida
         .game_enable(game_enable), // Habilita el movimiento de pelota/paletas
-        .state()
+        .state(state)
     );
 
 endmodule

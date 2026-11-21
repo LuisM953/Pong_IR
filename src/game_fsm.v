@@ -1,4 +1,9 @@
-module game_fsm (
+module game_fsm #(
+    parameter REPOSO    = 2'b00,
+              JUGANDO   = 2'b01,
+              GAME_OVER = 2'b10
+              // 11: estado invalido, se recupera a REPOSO
+)(
     input  wire clk,
     input  wire reset,
     input  wire win_p1,
@@ -8,10 +13,6 @@ module game_fsm (
     output wire game_enable,  // Habilita el movimiento de pelota/paletas
     output reg  [1:0] state   // 00: REPOSO, 01: JUGANDO, 10: GAME_OVER
 );
-    localparam REPOSO    = 2'b00,
-               JUGANDO   = 2'b01,
-               GAME_OVER = 2'b10;
-               // 11: estado invalido, se recupera a REPOSO
 
     reg [1:0] state_next;
 
