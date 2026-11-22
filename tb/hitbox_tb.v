@@ -28,7 +28,7 @@ module hitbox_tb;
         input [9:0] test_ball_y;
         input expected_hit_p1;
         input expected_hit_p2;
-        input [255:0] test_name;
+        input [511:0] test_name;
         begin
             p1_y   = test_p1_y;
             p2_y   = test_p2_y;

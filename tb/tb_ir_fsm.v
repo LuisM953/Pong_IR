@@ -11,9 +11,9 @@ module tb_ir_fsm();
     wire shift_en;
     wire shift_in;
     wire data_ready;
-    wire repeat_ready; // MODIFICADO: Nuevo puerto de trama de repeticion
+    wire repeat_ready; // Nuevo puerto de trama de repeticion
 
-    // MODIFICADO: Contadores de verificacion de pulsos y errores
+    // Contadores de verificacion de pulsos y errores
     integer data_ready_count   = 0;
     integer repeat_ready_count = 0;
     integer error_count        = 0;
@@ -28,7 +28,7 @@ module tb_ir_fsm();
         .shift_en(shift_en),
         .shift_in(shift_in),
         .data_ready(data_ready),
-        .repeat_ready(repeat_ready) // MODIFICADO: Conexion del puerto repeat_ready
+        .repeat_ready(repeat_ready) // Conexion del puerto repeat_ready
     );
 
     // reloj 100MHz
@@ -76,14 +76,14 @@ module tb_ir_fsm();
 
         // CASO 1: Prueba de ruido (pulso muy corto, debe volver a IDLE)
         $display("--- Prueba 1: Inyectando ruido ---");
-        data_ready_count   = 0; // MODIFICADO
-        repeat_ready_count = 0; // MODIFICADO
+        data_ready_count   = 0;
+        repeat_ready_count = 0;
         flanco_bajada = 1; #10; flanco_bajada = 0;
         #30;
         cuenta_actual = 20'd15_000; // mucho menor a 800,000
         flanco_subida = 1; #10; flanco_subida = 0;
         #40;
-        // MODIFICADO: Verificar que el ruido no activo data_ready ni repeat_ready
+        // Verificar que el ruido no activo data_ready ni repeat_ready
         if (data_ready_count !== 0 || repeat_ready_count !== 0) begin
             $display("[FAIL] Prueba 1 (Ruido): data_ready=%0d, repeat_ready=%0d", data_ready_count, repeat_ready_count);
             error_count = error_count + 1;
@@ -93,8 +93,8 @@ module tb_ir_fsm();
 
         // CASO 2: Trama NEC valida de 32 bits
         $display("--- Prueba 2: Enviando trama NEC completa ---");
-        data_ready_count   = 0; // MODIFICADO
-        repeat_ready_count = 0; // MODIFICADO
+        data_ready_count   = 0;
+        repeat_ready_count = 0;
         // inicio de pulso bajo (9ms)
         flanco_bajada = 1; #10; flanco_bajada = 0;
         #40;
@@ -117,7 +117,7 @@ module tb_ir_fsm();
         flanco_subida = 1; #10; flanco_subida = 0;
 
         #50;
-        // MODIFICADO: Verificar exactamente 1 pulso de data_ready y 0 de repeat_ready
+        // Verificar exactamente 1 pulso de data_ready y 0 de repeat_ready
         if (data_ready_count !== 1 || repeat_ready_count !== 0 || data_ready !== 1'b0) begin
             $display("[FAIL] Prueba 2 (Trama completa): data_ready=%0d (Esp:1), repeat_ready=%0d (Esp:0)",
                      data_ready_count, repeat_ready_count);
@@ -126,7 +126,7 @@ module tb_ir_fsm();
             $display("[PASS] Prueba 2 (Trama completa): data_ready genero exactamente 1 pulso y repeat_ready=0");
         end
 
-        // MODIFICADO: CASO 3: Trama de repeticion NEC valida (9 ms bajo + 2.25 ms alto + stop bit 562.5 us)
+        // CASO 3: Trama de repeticion NEC valida (9 ms bajo + 2.25 ms alto + stop bit 562.5 us)
         $display("--- Prueba 3: Enviando trama de repeticion NEC valida ---");
         data_ready_count   = 0;
         repeat_ready_count = 0;
@@ -154,7 +154,7 @@ module tb_ir_fsm();
             $display("[PASS] Prueba 3 (Repeticion): repeat_ready genero exactamente 1 pulso de ciclo y data_ready=0");
         end
 
-        // MODIFICADO: CASO 4: Espacio en LEADER_HIGH demasiado corto (100,000 ciclos <= 180,000)
+        // CASO 4: Espacio en LEADER_HIGH demasiado corto (100,000 ciclos <= 180,000)
         $display("--- Prueba 4: Espacio demasiado corto en LEADER_HIGH (debe volver a IDLE) ---");
         data_ready_count   = 0;
         repeat_ready_count = 0;
@@ -177,7 +177,7 @@ module tb_ir_fsm();
             $display("[PASS] Prueba 4 (Espacio corto): Rechazado sin activar repeat_ready ni data_ready");
         end
 
-        // MODIFICADO: CASO 5: Espacio demasiado largo en LEADER_HIGH (> 950,000 -> timeout a IDLE)
+        // CASO 5: Espacio demasiado largo en LEADER_HIGH (> 950,000 -> timeout a IDLE)
         $display("--- Prueba 5: Espacio demasiado largo en LEADER_HIGH (timeout a IDLE) ---");
         data_ready_count   = 0;
         repeat_ready_count = 0;
@@ -199,7 +199,7 @@ module tb_ir_fsm();
         end
 
         $display("Simulacion de FSM terminada.");
-        // MODIFICADO: Resumen final de verificacion
+        // Resumen final de verificacion
         if (error_count == 0) begin
             $display("EXITO: TODOS LOS TESTS DE FSM PASARON (0 ERRORES).");
         end else begin
@@ -212,10 +212,10 @@ module tb_ir_fsm();
     always @(posedge clk) begin
         if (!reset) begin
             if (data_ready) begin
-                data_ready_count = data_ready_count + 1; // MODIFICADO
+                data_ready_count = data_ready_count + 1;
                 $display("TIEMPO %0t: data_ready = 1! Trama de 32 bits recibida con exito.", $time);
             end
-            if (repeat_ready) begin // MODIFICADO
+            if (repeat_ready) begin
                 repeat_ready_count = repeat_ready_count + 1;
                 $display("TIEMPO %0t: repeat_ready = 1! Trama de repeticion detectada con exito.", $time);
             end

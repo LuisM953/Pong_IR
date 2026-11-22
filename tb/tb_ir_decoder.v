@@ -75,7 +75,7 @@ module tb_ir_decoder();
         end
     endtask
 
-    // MODIFICADO: Tarea que genera una trama de repeticion NEC (9 ms bajo + 2.25 ms alto + rafaga 562.5 us)
+    // Tarea que genera una trama de repeticion NEC (9 ms bajo + 2.25 ms alto + rafaga 562.5 us)
     task enviar_trama_repeticion;
         begin
             ir_rx = 0;
@@ -196,7 +196,7 @@ module tb_ir_decoder();
             $display("[PASS] Caso 7: Trama START corrupta rechazada (0 pulsos)");
         end
 
-        // MODIFICADO: CASO 8: Trama valida + repeticiones a periodo de 108 ms (sostiene movimiento > 120 ms)
+        // CASO 8: Trama valida + repeticiones a periodo de 108 ms (sostiene movimiento > 120 ms)
         $display("--- Caso 8: Trama P1_UP (8'h02) seguida de repeticiones a 108 ms ---");
         start_pulse_count = 0;
         enviar_trama_nec(32'hFD02FF00); // ~68.06 ms de trama inicial
@@ -214,7 +214,7 @@ module tb_ir_decoder();
             $display("[PASS] Caso 8: Repeticiones a 108 ms sostuvieron P1_UP (dirs=1000) mas alla de 216 ms");
         end
 
-        // MODIFICADO: CASO 9: Repeticion tardia (despues de vencer la ventana de 120 ms)
+        // CASO 9: Repeticion tardia (despues de vencer la ventana de 120 ms)
         $display("--- Caso 9: Repeticion tardia fuera de ventana de 120 ms (debe ignorarse) ---");
         #125_000_000; // esperar 125 ms (> 120 ms) para que hold_counter llegue a 0
         start_pulse_count = 0;
@@ -229,7 +229,7 @@ module tb_ir_decoder();
             $display("[PASS] Caso 9: Repeticion tardia ignorada (dirs=0000)");
         end
 
-        // MODIFICADO: CASO 10: Repeticion sin comando previo (tras reset)
+        // CASO 10: Repeticion sin comando previo (tras reset)
         $display("--- Caso 10: Repeticion sin comando previo tras reset (debe ignorarse) ---");
         reset = 1;
         #100;
@@ -247,7 +247,7 @@ module tb_ir_decoder();
             $display("[PASS] Caso 10: Repeticion sin comando previo ignorada (cmd=00, dirs=0000)");
         end
 
-        // MODIFICADO: CASO 11: Espacio en alto demasiado corto (1.0 ms) o demasiado largo (10.0 ms) tras pulso de 9 ms
+        // CASO 11: Espacio en alto demasiado corto (1.0 ms) o demasiado largo (10.0 ms) tras pulso de 9 ms
         $display("--- Caso 11: Espacios invalidos (demasiado corto 1.0 ms y demasiado largo 10.0 ms) ---");
         start_pulse_count = 0;
         // 11A: Espacio demasiado corto (1.0 ms < 1.8 ms minimo para repeticion)
@@ -278,7 +278,7 @@ module tb_ir_decoder();
             $display("[PASS] Caso 11: Espacios demasiado corto y demasiado largo rechazados correctamente");
         end
 
-        // MODIFICADO: CASO 12: START mantenido (trama START + repeticiones -> solo 1 pulso de ir_start)
+        // CASO 12: START mantenido (trama START + repeticiones -> solo 1 pulso de ir_start)
         $display("--- Caso 12: START mantenido con repeticiones (no debe redisparar ir_start) ---");
         start_pulse_count = 0;
         enviar_trama_nec(32'hA857FF00); // Trama START inicial (debe generar 1 pulso)

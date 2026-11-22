@@ -14,14 +14,14 @@ module score_tb;
     wire [3:0] score_p1;
     wire [3:0] score_p2;
 
-    // MODIFICADO: Cables de salida para la segunda instancia con MAX_SCORE por defecto (11)
+    // Cables de salida para la segunda instancia con MAX_SCORE por defecto (11)
     wire def_win_p1;
     wire def_win_p2;
     wire [3:0] def_score_p1;
     wire [3:0] def_score_p2;
 
     integer error_count = 0;
-    integer k; // MODIFICADO: Iterador para probar la instancia por defecto hasta 11
+    integer k; // Iterador para probar la instancia por defecto hasta 11
 
     // 2. Instancia principal del modulo bajo prueba (DUT) con MAX_SCORE = 3 para pruebas rapidas
     score #(
@@ -38,7 +38,7 @@ module score_tb;
         .score_p2(score_p2)
     );
 
-    // MODIFICADO: Segunda instancia sin sobrescribir parametros (usa MAX_SCORE = 11 por defecto)
+    // Segunda instancia sin sobrescribir parametros (usa MAX_SCORE = 11 por defecto)
     score uut_default (
         .clk(clk),
         .reset(reset),
@@ -64,7 +64,7 @@ module score_tb;
         input [3:0]  exp_s2;
         input        exp_w1;
         input        exp_w2;
-        input [511:0] test_name; // MODIFICADO: Ampliado a 512 bits (64 caracteres) para evitar recortes
+        input [511:0] test_name; // Ampliado a 512 bits (64 caracteres) para evitar recortes
         begin
             reset   = t_reset;
             clear   = t_clear;
@@ -127,7 +127,7 @@ module score_tb;
         // -------------------------------------------------------------
         step_and_check(1'b0, 1'b0, 1'b0, 1'b1, 4'd3, 4'd1, 1'b1, 1'b0, "6a. Gol P2 tras victoria de P1 (ignorado 3-1)");
 
-        // MODIFICADO: Caso 6b (Simetrico) -> P2 gana (0-3) y luego llega goal_p1 (debe quedar congelado en 0-3)
+        // Caso 6b (Simetrico) -> P2 gana (0-3) y luego llega goal_p1 (debe quedar congelado en 0-3)
         step_and_check(1'b1, 1'b0, 1'b0, 1'b0, 4'd0, 4'd0, 1'b0, 1'b0, "6b_reset. Reset antes de victoria P2 (0-0)");
         step_and_check(1'b0, 1'b0, 1'b0, 1'b1, 4'd0, 4'd1, 1'b0, 1'b0, "6b_step1. Gol 1 de P2 (0-1)");
         step_and_check(1'b0, 1'b0, 1'b0, 1'b1, 4'd0, 4'd2, 1'b0, 1'b0, "6b_step2. Gol 2 de P2 (0-2)");
@@ -187,7 +187,7 @@ module score_tb;
         step_and_check(1'b0, 1'b0, 1'b1, 1'b1, 4'd3, 4'd3, 1'b1, 1'b1, "13. Empate en MAX_SCORE (3-3, W1=1, W2=1)");
 
         // -------------------------------------------------------------
-        // MODIFICADO: Caso 14: Instancia con MAX_SCORE por defecto (11 / 4'b1011)
+        // Caso 14: Instancia con MAX_SCORE por defecto (11 / 4'b1011)
         // -------------------------------------------------------------
         $display("--- Probando instancia con MAX_SCORE por defecto (11) ---");
         

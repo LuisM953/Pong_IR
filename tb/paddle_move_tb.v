@@ -9,7 +9,7 @@ module tb_paddle_move;
     reg game_enable; // Entrada de habilitacion del juego (FSM)
     reg up;
     reg down;
-    reg clear;       // MODIFICADO: Entrada para resetear la paleta a la posicion inicial
+    reg clear;       // Entrada para resetear la paleta a la posicion inicial
     wire [9:0] y;
 
     integer error_count = 0;
@@ -23,7 +23,7 @@ module tb_paddle_move;
         .game_enable(game_enable),
         .up(up),
         .down(down),
-        .clear(clear), // MODIFICADO: Conexion del puerto clear
+        .clear(clear), // Conexion del puerto clear
         .y(y)
     );
 
@@ -71,7 +71,7 @@ module tb_paddle_move;
         game_enable = 0; // Inicia deshabilitado (estado REPOSO de la FSM)
         up = 0;
         down = 0;
-        clear = 0;       // MODIFICADO: Inicializacion de clear
+        clear = 0;       // Inicializacion de clear
         
         #20; // Mantener el reset activo unos ciclos
         reset = 0;
@@ -142,7 +142,7 @@ module tb_paddle_move;
             $display("[PASS] Reset con game_enable=0 | y: %0d", y);
         end
 
-        // --- MODIFICADO: 7. Pruebas de clear (independiente de tick/enable/botones y en pleno movimiento) ---
+        // --- 7. Pruebas de clear (independiente de tick/enable/botones y en pleno movimiento) ---
         $display("--- Probando clear en paddle_move ---");
 
         // Desplazar paleta fuera de 200 (200 -> 196 -> 192)

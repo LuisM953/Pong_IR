@@ -7,9 +7,9 @@ module tb_ball_move;
     reg reset;
     reg frame_tick;
     reg game_enable; // Entrada de habilitacion del juego (FSM)
-    reg clear;       // MODIFICADO: Entrada para resetear la pelota al centro y direcciones iniciales
+    reg clear;       // Entrada para resetear la pelota al centro y direcciones iniciales
     
-    // Estímulos independientes para aislar ball_move
+    // Estimulos independientes para aislar ball_move
     reg hit_p1_reg;
     reg hit_p2_reg;
 
@@ -36,10 +36,10 @@ module tb_ball_move;
         .frame_tick(frame_tick),
         .hit_p1(hit_p1_reg),
         .hit_p2(hit_p2_reg),
-        .clear(clear),             // MODIFICADO: Conexion del puerto clear
+        .clear(clear),             // Conexion del puerto clear
         .game_enable(game_enable),
-        .goal_p1(goal_p1), // Conexion de salida gol jugador 1
-        .goal_p2(goal_p2), // Conexion de salida gol jugador 2
+        .goal_p1(goal_p1),         // Conexion de salida gol jugador 1
+        .goal_p2(goal_p2),         // Conexion de salida gol jugador 2
         .ball_x(ball_x),
         .ball_y(ball_y)
     );
@@ -52,7 +52,7 @@ module tb_ball_move;
         input test_tick;
         input [9:0] expected_x;
         input [9:0] expected_y;
-        input [255:0] test_name;
+        input [511:0] test_name;
         begin
             frame_tick = test_tick;
 
@@ -76,7 +76,7 @@ module tb_ball_move;
         clk = 0;
         frame_tick = 0;
         game_enable = 0; // Inicia deshabilitado (estado REPOSO de la FSM)
-        clear = 0;       // MODIFICADO: Inicializacion de clear
+        clear = 0;       // Inicializacion de clear
         hit_p1_reg = 0;
         hit_p2_reg = 0;
 
@@ -88,7 +88,7 @@ module tb_ball_move;
         reset = 0;
         #10;
 
-        // Verificar tambien que las señales de gol inicien en 0
+        // Verificar tambien que las senales de gol inicien en 0
         if (ball_x !== 10'd315 || ball_y !== 10'd235 || uut.dir_x !== 1'b1 || uut.dir_y !== 1'b1 || goal_p1 !== 1'b0 || goal_p2 !== 1'b0) begin
             $display("[FAIL] Reset inicial | (x,y): (%0d,%0d), dir_x:%b, dir_y:%b, g1:%b, g2:%b",
                      ball_x, ball_y, uut.dir_x, uut.dir_y, goal_p1, goal_p2);
@@ -149,7 +149,7 @@ module tb_ball_move;
             $display("[FAIL] Golpe P1: dir_x no invirtio a 0");
             error_count = error_count + 1;
         end
-        hit_p1_reg = 0; // Limpiar estímulo
+        hit_p1_reg = 0; // Limpiar estimulo
         frame_tick = 0; #10;
 
         // --- Caso B: Golpe en Paleta 2 (ball_x en zona de golpe = 601, y esperada = 202) ---
@@ -161,12 +161,12 @@ module tb_ball_move;
             $display("[FAIL] Golpe P2: dir_x no invirtio a 1");
             error_count = error_count + 1;
         end
-        hit_p2_reg = 0; // Limpiar estímulo
+        hit_p2_reg = 0; // Limpiar estimulo
         frame_tick = 0; #10;
 
-        // --- Caso C: Pelota alejándose de P1 (hit_p1_reg activo pero dir_x = 0, no debe rebotar) ---
+        // --- Caso C: Pelota alejandose de P1 (hit_p1_reg activo pero dir_x = 0, no debe rebotar) ---
         uut.ball_x = 10'd25; uut.ball_y = 10'd200; uut.dir_x = 1'b0; uut.dir_y = 1'b0;
-        hit_p1_reg = 1'b1; // hit activo por posición, pero se aleja
+        hit_p1_reg = 1'b1; // hit activo por posicion, pero se aleja
         #10;
         check_ball(1'b1, 10'd27, 10'd202, "Sin rebote P1: Pelota alejandose");
         if (uut.dir_x !== 1'b0) begin
@@ -176,9 +176,9 @@ module tb_ball_move;
         hit_p1_reg = 0;
         frame_tick = 0; #10;
 
-        // --- Caso D: Pelota alejándose de P2 (hit_p2_reg activo pero dir_x = 1, no debe rebotar) ---
+        // --- Caso D: Pelota alejandose de P2 (hit_p2_reg activo pero dir_x = 1, no debe rebotar) ---
         uut.ball_x = 10'd605; uut.ball_y = 10'd200; uut.dir_x = 1'b1; uut.dir_y = 1'b0;
-        hit_p2_reg = 1'b1; // hit activo por posición, pero se aleja
+        hit_p2_reg = 1'b1; // hit activo por posicion, pero se aleja
         #10;
         check_ball(1'b1, 10'd603, 10'd202, "Sin rebote P2: Pelota alejandose");
         if (uut.dir_x !== 1'b1) begin
@@ -188,7 +188,7 @@ module tb_ball_move;
         hit_p2_reg = 0;
         frame_tick = 0; #10;
 
-        // Pruebas de Goles y Reinicio al Centro (reemplazan el antiguo rebote lateral)
+        // Pruebas de Goles y Reinicio al Centro
         $display("--- Pruebas de Goles en Paredes Laterales y Reinicio ---");
 
         // --- 1. Casi gol izquierdo (ball_x = 14, dir_x = 1 -> va a x = 12 sin pulso ni reinicio) ---
@@ -307,13 +307,13 @@ module tb_ball_move;
             @(posedge clk);
             #1;
             
-            // Verificar límites espaciales
+            // Verificar limites espaciales
             if (ball_x < 10'd10 || ball_x > 10'd620 || ball_y < 10'd10 || ball_y > 10'd460) begin
                 $display("[FAIL] Bucle largo | Violacion de limites en cuadro %0d: (x,y) = (%0d,%0d)", i, ball_x, ball_y);
                 error_count = error_count + 1;
             end
 
-            // 3. Contar pulsos de gol y verificar que no haya dos consecutivos
+            // Contar pulsos de gol y verificar que no haya dos consecutivos
             if (goal_p1) begin
                 count_goal_p1 = count_goal_p1 + 1;
                 if (prev_goal_p1) begin
@@ -376,7 +376,7 @@ module tb_ball_move;
         end
 
         // -------------------------------------------------------------
-        // MODIFICADO: 8. Pruebas de clear (independiente de tick/enable/colisiones y en pleno movimiento)
+        // 8. Pruebas de clear (independiente de tick/enable/colisiones y en pleno movimiento)
         // -------------------------------------------------------------
         $display("--- Probando clear en ball_move ---");
 
