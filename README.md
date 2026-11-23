@@ -17,7 +17,7 @@ Juego de Pong para dos jugadores que se muestra en un monitor VGA de 640x480 a 6
 - [ ] Decodificación de las teclas de dos controles IR.
 - [ ] Un par de teclas asignado a cada jugador (subir y bajar).
 - [ ] El juego se muestra en una pantalla VGA.
-- [ ] Testbench por cada módulo, con casos límite (hecho para `vga_sync`, `pixel_gen`, `paddle_move`, `ball_move`, `hitbox`, `score`, `calibration`, `game_fsm`, `ir_fsm`, `ir_decoder` y el módulo superior `top_pong`; `ir_shift_register` comprueba una sola trama y `ir_sync_detector` e `ir_contador_tiempo` aún no comprueban resultados automáticamente).
+- [ ] Testbench por cada módulo, con casos límite (hecho para `vga_sync`, `pixel_gen`, `paddle_move`, `ball_move`, `hitbox`, `score`, `calibration`, `game_fsm`, `ir_sync_detector`, `ir_contador_tiempo`, `ir_fsm`, `ir_shift_register`, `ir_decoder` y el módulo superior `top_pong`; todos comprueban resultados automáticamente. Hueco conocido: `vga_sync_tb` no mide `vsync`).
 
 ## Hardware
 
@@ -45,7 +45,7 @@ sudo apt install iverilog gtkwave
 Pong_IR/
 ├── src/
 │   ├── vga_sync.v      # temporización VGA, tick y frame_tick
-│   ├── pixel_gen.v     # color de cada píxel
+│   ├── pixel_gen.v     # color de cada píxel: cancha, marcador y pantallas de REPOSO y GAME_OVER
 │   ├── paddle_move.v   # movimiento de una paleta
 │   ├── ball_move.v     # movimiento de la pelota: rebotes, golpe contra las paletas y línea de gol
 │   ├── hitbox.v        # detecta el golpe de la pelota contra cada paleta
@@ -53,10 +53,10 @@ Pong_IR/
 │   ├── calibration.v   # pantalla blanca de calibración del monitor al arrancar
 │   ├── ir_sync_detector.v  # sincroniza la señal del receptor IR y detecta flancos
 │   ├── ir_contador_tiempo.v # cronómetro de 20 bits que se reinicia con cada flanco del receptor IR
-│   ├── ir_fsm.v        # FSM del protocolo NEC: guía, bits y parada (Jose)
-│   ├── ir_shift_register.v # registro de desplazamiento de 32 bits de la trama (Jose)
+│   ├── ir_fsm.v        # FSM del protocolo NEC: guía, bits, parada y repetición
+│   ├── ir_shift_register.v # registro de desplazamiento de 32 bits de la trama
 │   ├── ir_decoder.v    # une los módulos IR, valida la trama y entrega ir_p1_up/down, ir_p2_up/down e ir_start
-│   ├── game_fsm.v      # FSM de partida: REPOSO, JUGANDO, GAME_OVER (clear y game_enable)
+│   ├── game_fsm.v      # FSM de partida: REPOSO, JUGANDO, GAME_OVER (clear, game_enable y state)
 │   └── top.v           # módulo superior (top_pong)
 ├── tb/
 │   ├── vga_sync_tb.v
@@ -68,14 +68,14 @@ Pong_IR/
 │   ├── calibration_tb.v
 │   ├── top_tb.v
 │   ├── tb_ir_sync_detector.v
-│   ├── tb_contador_tiempo.v
+│   ├── tb_ir_contador_tiempo.v
 │   ├── tb_ir_fsm.v
 │   ├── tb_ir_shift_register.v
 │   ├── tb_ir_decoder.v
 │   └── game_fsm_tb.v
 ├── constraints/
 │   └── Basys3.xdc      # asignación de pines de la Basys3
-├── docs/           # esquemático (DigitalJS) y capturas de simulación (`game_fsm_tb.png`, `ir_decoder_tb.png`, `top_tb.png`, etc.)
+├── docs/               # esquemático (DigitalJS: schematic.digitaljs), forma de onda de vga_sync (hsync.gtkw) y salidas de simulación (calibration_tb.txt, pixel_gen_tb.txt) y capturas de simulación (`game_fsm_tb.png`, `ir_decoder_tb.png`, `top_tb.png`, etc.)
 ├── README.md
 └── AI_USAGE.md     # registro del uso de herramientas de IA
 ```
@@ -96,7 +96,9 @@ Receptor IR -> ir_sync_detector -> ir_fsm + ir_shift_register -> ir_decoder (val
 Reloj 100 MHz -> vga_sync -> x, y, video_on, frame_tick -------+ (frame_tick también va a paddle_move y ball_move)
 ```
 
-`ball_move` entrega dos pulsos de gol (`goal_p1` y `goal_p2`) que van a `score`; sus contadores `score_p1` y `score_p2` van a `pixel_gen`, que los dibuja como cajas en la parte superior. `score` entrega los niveles `win_p1` y `win_p2` a `game_fsm`. `game_fsm` genera dos señales: `game_enable` (nivel en JUGANDO) que habilita el movimiento en `paddle_move` (x2) y `ball_move`, y `clear` (nivel en REPOSO) que pone el marcador en 0 y devuelve las paletas y la pelota a su posición inicial (`paddle_move` x2 y `ball_move` lo reciben). `ir_decoder` entrega a `game_fsm` el pulso `ir_start` (un ciclo) cuando llega la tecla de inicio. Entre `pixel_gen` y la salida `rgb` hay un multiplexor (`calibration`) que muestra primero la pantalla blanca de calibración. La salida `state` de `game_fsm` todavía no se usa: falta que `pixel_gen` dibuje el menú de REPOSO y la pantalla de GAME_OVER con el ganador.
+`ball_move` entrega dos pulsos de gol (`goal_p1` y `goal_p2`) que van a `score`; sus contadores `score_p1` y `score_p2` van a `pixel_gen`, que los dibuja como cajas en la parte superior. `score` entrega los niveles `win_p1` y `win_p2` a `game_fsm` y también a `pixel_gen`. `game_fsm` genera tres señales: `game_enable` (nivel en JUGANDO) que habilita el movimiento en `paddle_move` (x2) y `ball_move`, `clear` (nivel en REPOSO) que pone el marcador en 0 y devuelve las paletas y la pelota a su posición inicial (`paddle_move` x2 y `ball_move` lo reciben), y `state`, que va a `pixel_gen`. `ir_decoder` entrega a `game_fsm` el pulso `ir_start` (un ciclo) cuando llega la tecla de inicio. Entre `pixel_gen` y la salida `rgb` hay un multiplexor (`calibration`) que muestra primero la pantalla blanca de calibración.
+
+`pixel_gen` recibe `state`, `win_p1` y `win_p2` y dibuja encima de la cancha el panel de REPOSO (menú de nueva partida) o el de GAME_OVER (con el color y el dígito del ganador); en JUGANDO no dibuja nada extra. `pixel_gen` no recibe `ir_start`: quien decide el cambio de estado es `game_fsm` y `pixel_gen` solo dibuja según `state`.
 
 Los jugadores pueden mover las paletas con los botones de la Basys3 o con el control IR: en el top las dos entradas se unen con OR (`up_p1 | ir_p1_up`, etc.), así que cualquiera de las dos fuentes sirve. Con un solo receptor IR solo se decodifica un comando a la vez. El módulo `top_pong` (`src/top.v`) solo conecta los módulos entre sí y con los pines de la tarjeta (el multiplexor de calibración es el módulo `calibration`, no lógica dentro del top).
 
@@ -106,20 +108,19 @@ Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia d
 
 | Módulo | Archivo | Estado |
 |---|---|---|
-| Sincronía VGA | `src/vga_sync.v` | Hecho, con testbench autoverificable (HSYNC y `frame_tick`) |
-| Generador de píxeles (paletas, pelota, línea central, borde, marcador) | `src/pixel_gen.v` | Hecho, con testbench de bordes, prioridades y marcador (0-0, 3-7, 11-11). Recibe `p1_y`, `p2_y`, `ball_x`, `ball_y`, `score_p1` y `score_p2` como entradas |
+| Sincronía VGA | `src/vga_sync.v` | Hecho, con testbench autoverificable (HSYNC y `frame_tick`; `vsync` no se mide) |
+| Generador de píxeles (paletas, pelota, línea central, borde, marcador, pantallas de REPOSO y GAME_OVER) | `src/pixel_gen.v` | Hecho, con testbench de bordes, prioridades, marcador (0-0, 3-7, 11-11) y pantallas (marco, ícono, dígitos 1 y 2, respaldo sin ganador y estado `2'b11`). Recibe `p1_y`, `p2_y`, `ball_x`, `ball_y`, `score_p1`, `score_p2`, `state`, `win_p1` y `win_p2` como entradas |
 | Movimiento de una paleta | `src/paddle_move.v` | Hecho, con testbench (límites ajustados al borde) |
 | Movimiento de la pelota | `src/ball_move.v` | Hecho, con testbench: rebotes en las paredes superior e inferior, rebote contra las paletas con `hit_p1` y `hit_p2` y línea de gol en las paredes laterales (salidas `goal_p1` y `goal_p2`, reinicio al centro) |
 | Detección de golpe contra las paletas | `src/hitbox.v` | Hecho, con testbench de bordes (un píxel dentro y uno fuera de cada límite) |
 | Marcador | `src/score.v` | Hecho, con testbench autoverificable (casos límite y pruebas de mutación). Cuenta hasta `MAX_SCORE` (11) y satura; `clear` y `reset` ponen ambos contadores en 0 |
 | Pantalla de calibración del monitor | `src/calibration.v` | Hecho, con testbench (`CALIB_FRAMES` = 0, 3 y 180). **Generado por IA** (ver AI_USAGE.md); Luis lo revisó y lo estudia |
-| Máquina de estados de partida (REPOSO, JUGANDO, GAME_OVER) | `src/game_fsm.v` | Hecho (Luis), con testbench autoverificable (`tb/game_fsm_tb.v`, 9 pruebas). Entradas `win_p1`, `win_p2`, `ir_start`; salidas `clear`, `game_enable` y `state`. `game_enable` se conectó a `paddle_move` (x2) y `ball_move`, con sus testbenches ampliados |
-| Sincronizador y detector de flancos del receptor IR | `src/ir_sync_detector.v` | Hecho (Jose Miguel Sedano). Su testbench (`tb/tb_ir_sync_detector.v`) solo muestra formas de onda: falta la comprobación automática y los casos límite |
-| Cronómetro de flancos del receptor IR | `src/ir_contador_tiempo.v` | Escrito por Jose Miguel Sedano. Su testbench (`tb/tb_contador_tiempo.v`) no compila: instancia `contador_tiempo` y el módulo se llama `ir_contador_tiempo`; además solo imprime mensajes, sin comprobaciones |
-| Decodificador NEC | `src/ir_decoder.v`, `src/ir_fsm.v`, `src/ir_shift_register.v` | Integrado en `top_pong` y probado en la tarjeta con el receptor y el control reales. La base (`ir_sync_detector`, `ir_contador_tiempo`, `ir_fsm`, `ir_shift_register` y el `ir_decoder` inicial) es de Jose Miguel Sedano; Luis la modificó: en `ir_fsm` el estado `REPEAT_STOP`, `repeat_ready` y los umbrales, y en `ir_decoder` `ir_start`, `CMD_START`, la recarga con repeticiones y los códigos reales, además de los casos nuevos de `tb_ir_decoder` (12 casos) y `tb_ir_fsm` (5 pruebas autoverificables). Valida la trama (`cmd == ~cmd_inv`). **Tramas de repetición NEC:** `ir_fsm` tiene el estado `REPEAT_STOP` y la salida `repeat_ready`; `ir_decoder` recarga `hold_counter` con cada repetición (solo si aún estaba activo), para que la paleta se mueva mientras se mantiene la tecla. Según Luis, con la tecla mantenida la paleta ya se mueve de forma continua en la tarjeta. `tb_ir_shift_register` comprueba una sola trama, y `tb_ir_sync_detector` y `tb_contador_tiempo` aún no comprueban resultados automáticamente |
+| Máquina de estados de partida (REPOSO, JUGANDO, GAME_OVER) | `src/game_fsm.v` | Hecho (Luis), con testbench autoverificable (`tb/game_fsm_tb.v`, 9 pruebas). Entradas `win_p1`, `win_p2`, `ir_start`; salidas `clear`, `game_enable` y `state`. `game_enable` se conectó a `paddle_move` (x2) y `ball_move`, con sus testbenches ampliados; `state` va a `pixel_gen` |
+| Sincronizador y detector de flancos del receptor IR | `src/ir_sync_detector.v` | Hecho (Jose Miguel Sedano). Su testbench (`tb/tb_ir_sync_detector.v`) tiene 5 casos autoverificables: reset y reposo, flanco de bajada y de subida (latencia de 2 FF y pulso de un ciclo), glitch sub-ciclo filtrado y reset asíncrono con la línea en bajo. Es el único módulo del diseño con reset asíncrono; el resto usa reset síncrono |
+| Cronómetro de flancos del receptor IR | `src/ir_contador_tiempo.v` | Escrito por Jose Miguel Sedano. Su testbench (`tb/tb_ir_contador_tiempo.v`) tiene 6 casos autoverificables: reset, conteo libre, reinicio por flanco de bajada y por flanco de subida, flancos simultáneos y desbordamiento de 20 bits |
+| Decodificador NEC | `src/ir_decoder.v`, `src/ir_fsm.v`, `src/ir_shift_register.v` | Integrado en `top_pong` y probado en la tarjeta con el receptor y el control reales. La base (`ir_sync_detector`, `ir_contador_tiempo`, `ir_fsm`, `ir_shift_register` y el `ir_decoder` inicial) es de Jose Miguel Sedano; Luis la modificó: en `ir_fsm` el estado `REPEAT_STOP`, `repeat_ready` y los umbrales, y en `ir_decoder` `ir_start`, `CMD_START`, la recarga con repeticiones y los códigos reales, además de los casos nuevos de `tb_ir_decoder` (12 casos) y `tb_ir_fsm` (5 pruebas autoverificables). Valida la trama (`cmd == ~cmd_inv`). **Tramas de repetición NEC:** `ir_fsm` tiene el estado `REPEAT_STOP` y la salida `repeat_ready`; `ir_decoder` recarga `hold_counter` con cada repetición (solo si aún estaba activo), para que la paleta se mueva mientras se mantiene la tecla. Según Luis, con la tecla mantenida la paleta ya se mueve de forma continua en la tarjeta. `tb_ir_shift_register` tiene 6 casos autoverificables (reset, retención con `shift_en` en 0, primer bit por el MSB, reset en operación, trama completa de 32 bits y protección de la trama ya reconstruida) |
 | Mapeo de teclas | `src/ir_decoder.v` | Hecho dentro del decodificador con `localparam`, con los códigos leídos del control de TV Hyundai D&PHYUN-30 a través de los LEDs: `CMD_P1_UP` = `02` (tecla 2), `CMD_P1_DOWN` = `08` (tecla 8), `CMD_P2_UP` = `19` (flecha arriba), `CMD_P2_DOWN` = `1D` (flecha abajo) y `CMD_START` = `57` (Home). Los testbenches usan estos mismos códigos. Dos controles del mismo modelo mandan los mismos códigos, así que cada jugador necesita teclas distintas |
-| Módulo superior (top) | `src/top.v` (módulo `top_pong`) | Hecho, con testbench (`tb/top_tb.v`). Declara las constantes de diseño y las pasa a los módulos con `#(...)`; su parámetro `CALIB_FRAMES` (180 por defecto) se pasa a `calibration`. Probado en la Basys3 con un monitor VGA: paletas, pelota y colisión con las paletas; la línea de gol, el marcador y la pantalla de calibración se verificaron solo en simulación |  
-**Actualización:** ahora también conecta `ir_decoder` y `game_fsm`; `top_tb` prueba el arranque por IR, el bloqueo en REPOSO, START ignorado en JUGANDO, victoria de cada jugador, congelamiento en GAME_OVER y regreso a REPOSO (0 errores; la simulación completa tarda unos 5 minutos).
+| Módulo superior (top) | `src/top.v` (módulo `top_pong`) | Hecho, con testbench (`tb/top_tb.v`). Declara las constantes de diseño y las pasa a los módulos con `#(...)`; su parámetro `CALIB_FRAMES` (180 por defecto) se pasa a `calibration`. Conecta también `ir_decoder` y `game_fsm`. `top_tb` prueba el arranque por IR, el bloqueo en REPOSO, START ignorado en JUGANDO, victoria de cada jugador, congelamiento en GAME_OVER, regreso a REPOSO y el color de los paneles de REPOSO y GAME_OVER en pantalla. Probado en la Basys3 con un monitor VGA: paletas, pelota y colisión con las paletas; la línea de gol, el marcador y la pantalla de calibración se verificaron solo en simulación |
 
 ### Constantes y parámetros del diseño
 
@@ -139,6 +140,10 @@ Todo el diseño trabaja con un solo reloj de 100 MHz. Para obtener la cadencia d
 | `BALL_SPEED` | 2 | `ball_move` |
 | `MAX_SCORE` | 11 | `score`, `pixel_gen` (máximo 15 por los 4 bits de los contadores) |
 | `BOX_SIZE`, `BOX_MARGIN` | 6 y 2 | `pixel_gen` (`BOX_SIZE + BOX_MARGIN` debe ser potencia de 2) |
+| `PANEL_BORDER` | 5 | `pixel_gen` (grosor del marco de los paneles de REPOSO y GAME_OVER) |
+| `REPOSO` | `2'b00` | `game_fsm` (`pixel_gen` no lo recibe: REPOSO cae por el `default` de su `case`) |
+| `JUGANDO` | `2'b01` | `game_fsm`, `pixel_gen` |
+| `GAME_OVER` | `2'b10` | `game_fsm`, `pixel_gen` |
 | `CALIB_FRAMES` | 180 | `calibration`; es parámetro del propio `top_pong` para poder ponerlo en 0 en `top_tb` |
 
 Decisiones de diseño:
@@ -163,7 +168,7 @@ Valores esperados en simulación: `tick` cada 40 ns, línea de 32 µs, pulso de 
 
 ### Diseño de `pixel_gen`
 
-El módulo recibe la posición del píxel (`x`, `y`) y `video_on` desde `vga_sync`, la posición vertical de cada paleta (`p1_y`, `p2_y`, 10 bits) desde `paddle_move`, la posición de la pelota (`ball_x`, `ball_y`, 10 bits) desde `ball_move`, el marcador (`score_p1`, `score_p2`, 4 bits) desde `score`, y devuelve el color de 12 bits (4 por canal, en el orden rojo, verde, azul). Cada objeto es un rectángulo definido por comparaciones, y las medidas están en `localparam` para cambiarlas en un solo lugar.
+El módulo recibe la posición del píxel (`x`, `y`) y `video_on` desde `vga_sync`, la posición vertical de cada paleta (`p1_y`, `p2_y`, 10 bits) desde `paddle_move`, la posición de la pelota (`ball_x`, `ball_y`, 10 bits) desde `ball_move`, el marcador (`score_p1`, `score_p2`, 4 bits) desde `score`, el estado de la partida (`state`, 2 bits) desde `game_fsm` y los niveles `win_p1` y `win_p2` desde `score`, y devuelve el color de 12 bits (4 por canal, en el orden rojo, verde, azul). Cada objeto es un rectángulo definido por comparaciones, y las medidas están en `localparam` para cambiarlas en un solo lugar.
 
 | Objeto | Tamaño | Posición inicial | Color (`rgb`) |
 |---|---|---|---|
@@ -174,12 +179,13 @@ El módulo recibe la posición del píxel (`x`, `y`) y `video_on` desde `vga_syn
 | Borde | 10 de grosor (`BORDER_W`) en los cuatro lados | `x` < 10, `x` >= 630, `y` < 10, `y` >= 470 | `667` |
 | Placa del marcador | dentro del borde superior, `y` 1 a 8, `x` 222 a 417 | centrada | `334` |
 | Cajas del marcador | 11 por jugador, de 6 x 6 con 2 de separación, `y` 2 a 7 | jugador 1 a la izquierda del centro (se llena hacia la izquierda), jugador 2 a la derecha | encendida `FF3` (J1) o `F35` (J2); apagada `213` |
+| Panel de REPOSO o GAME_OVER | 160 x 120 con marco de 5 | `x` 240 a 399, `y` 180 a 299 | ver "Pantallas de REPOSO y GAME_OVER" |
 | Fondo (zona visible) | | | `102` |
 | Fuera de la zona visible | | | `000` (siempre negro) |
 
 Decisiones de diseño:
 
-- **Prioridad de colores** (de mayor a menor): fuera de la zona visible, paletas, pelota, cajas encendidas, cajas apagadas, placa del marcador, línea central, borde, fondo. Así la pelota se ve por encima de la línea y las paletas por encima del borde.
+- **Prioridad de colores** (de mayor a menor): fuera de la zona visible, capa de panel (REPOSO o GAME_OVER), paleta 1, paleta 2, pelota, cajas encendidas, cajas apagadas, placa del marcador, línea central, borde, fondo. Así la pelota se ve por encima de la línea y las paletas por encima del borde.
 - **Negro en el blanking:** fuera de `video_on` la salida es siempre `000`, porque el monitor VGA calibra su nivel de negro en esas zonas.
 - **Línea discontinua:** se obtiene con un bit de la coordenada `y` (tramos de 4 filas). Para que sea simétrica entre arriba y abajo se usa una coordenada "doblada" respecto al centro: `y_fold` vale `y` en la mitad superior y `479 - y` en la inferior.
 - **Posición vertical de las paletas como entrada:** `pixel_gen` es puramente combinacional (no guarda nada ni tiene reset); solo lee `p1_y` y `p2_y` (que llegan de `paddle_move`) y `ball_x` y `ball_y` (de `ball_move`). Que esas entradas sean registros en otro módulo no vuelve secuencial a `pixel_gen`: él solo las lee. La posición `x` de cada paleta sigue siendo constante.
@@ -188,6 +194,53 @@ Decisiones de diseño:
 - **`BOX_STEP` potencia de 2:** para saber si un píxel cae en una caja o en el hueco se usa `(distancia & (BOX_STEP - 1)) < BOX_SIZE`. La máscara solo equivale a `distancia % BOX_STEP` si `BOX_STEP` es potencia de 2 (con 10 dejaba de dibujar bien, por eso `BOX_MARGIN` = 2 y `BOX_STEP` = 8). Además es solo cableado, sin la lógica de un módulo. Un bloque `initial` avisa en simulación si no se cumple; Vivado ignora `$display` y `$finish`, así que esa guarda no protege la síntesis.
 - **El marcador dentro del borde:** la placa ocupa las filas 1 a 8 del borde superior (la fila 0 y la 9 siguen siendo borde) y tapa la línea central en esa zona. Al ocupar el borde no hace falta mover el área de juego.
 - **Márgenes separados:** `MARGIN` (20) es la distancia de las paletas al borde de la pantalla; `BORDER_W` (10) es el grosor del borde. Así quedan 10 píxeles libres entre cada paleta y la pared.
+
+#### Pantallas de REPOSO y GAME_OVER
+
+Una capa "overlay" (bloque `always @(*)` con `case (state)`) decide si hay panel y de qué color es el píxel. Antes del `case`, `overlay_on` y `overlay_rgb` tienen valores por defecto (0 y `000`), así que no se infiere ningún latch y `rgb` sigue siendo una asignación continua.
+
+Geometría (con `SCREEN_W` = 640 y `SCREEN_H` = 480; todo se deriva de esas dos constantes con `localparam`):
+
+| Elemento | Fórmula | Valor |
+|---|---|---|
+| Panel | `PANEL_W` = `SCREEN_W/4`, `PANEL_H` = `SCREEN_H/4` | 160 x 120, `x` 240 a 399, `y` 180 a 299 |
+| Marco | `PANEL_BORDER` | 5 píxeles por lado (`x` 240 a 244 y 395 a 399; `y` 180 a 184 y 295 a 299); las esquinas son la unión por OR de los cuatro lados |
+| Ícono de inicio (REPOSO) | `ICON_W` = `PANEL_W/2`, `ICON_H` = `PANEL_H/2`, centrado en el panel | 80 x 60, `x` 280 a 359, `y` 210 a 269 |
+| Medio bloque de dígito | `HALF_B` = `PANEL_H/16` | 7 (120/16 = 7.5; la división entera trunca) |
+| Centro del panel | `PANEL_CX`, `PANEL_CY` | (320, 240) |
+
+Los dígitos se dibujan sobre una cuadrícula de 3 columnas por 5 filas, con bloques de `2*HALF_B` = 14 píxeles, centrada en (320, 240):
+
+| Dígito | Barra | `x` | `y` |
+|---|---|---|---|
+| "1" | tronco | 313 a 326 | 205 a 274 |
+| "1" | visera | 299 a 312 | 219 a 232 |
+| "1" | base | 299 a 340 | 261 a 274 |
+| "2" | barra superior | 299 a 340 | 205 a 218 |
+| "2" | bajada derecha | 327 a 340 | 205 a 246 |
+| "2" | barra central | 299 a 340 | 233 a 246 |
+| "2" | bajada izquierda | 299 a 312 | 233 a 274 |
+| "2" | barra inferior | 299 a 340 | 261 a 274 |
+
+Colores:
+
+| Estado | Marco | Fondo del panel | Contenido |
+|---|---|---|---|
+| REPOSO (`2'b00`) | `FFF` | `28C` | ícono `FFF` |
+| GAME_OVER con `win_p1` | `FFF` | `FF3` | dígito "1" en `102` |
+| GAME_OVER con `win_p2` | `FFF` | `F35` | dígito "2" en `102` |
+| GAME_OVER sin ganador | `FFF` | `667` | nada (respaldo) |
+| JUGANDO (`2'b01`) | sin capa | | |
+| `2'b11` | igual que REPOSO | | |
+
+Decisiones de diseño:
+
+- **Ícono geométrico, sin ROM de caracteres:** el ícono de REPOSO es un rectángulo y los dígitos son uniones de rectángulos. Es más simple de dibujar y de sustentar que una memoria de caracteres.
+- **El panel va por encima de la pelota y de las paletas:** en REPOSO la pelota está en (315, 235) por `clear`, y en GAME_OVER vuelve a (315, 235) por el reinicio del gol y queda congelada; en ambos casos el panel la tapa. Las paletas quedan visibles a los lados del panel.
+- **`HALF_B` trunca 7.5 a 7:** la división entera de `PANEL_H/16` descarta la fracción. Por eso el bloque completo, `2*HALF_B`, siempre es par y los dígitos quedan simétricos alrededor del centro.
+- **REPOSO no es parámetro de `pixel_gen`:** cae por el `default` del `case`, junto con el estado inválido `2'b11`, que así se muestra como REPOSO (el mismo estado seguro al que `game_fsm` recupera).
+- **`pixel_gen` solo dibuja:** no recibe `ir_start`. `game_fsm` decide el estado y `pixel_gen` dibuja según `state`; así sigue siendo combinacional, sin memoria.
+- **Si `win_p1` y `win_p2` valen 1 a la vez** en GAME_OVER, se muestra el panel de P1 (la rama de `win_p1` se evalúa primero).
 
 ### Diseño de `paddle_move`
 
@@ -269,9 +322,11 @@ Es una FSM de Moore de tres estados, escrita en tres bloques (registro de estado
 
 Decisiones de diseño (las tomó Luis a partir de las preguntas planteadas):
 
-- Arranca en REPOSO tras el reset; ahí `game_enable` = 0, así que paletas y pelota quedan congeladas. REPOSO será el menú de nueva partida (opciones como la velocidad quedan para más adelante).
+- Arranca en REPOSO tras el reset; ahí `game_enable` = 0, así que paletas y pelota quedan congeladas. REPOSO es el menú de nueva partida: `pixel_gen` dibuja el panel con el ícono de inicio (opciones como la velocidad quedan para más adelante).
 - `ir_start` es un **pulso** (un evento); `clear` y `game_enable` son **niveles** que salen directamente del estado.
+- `state` sale de la FSM hacia `pixel_gen`, que dibuja el panel de REPOSO o de GAME_OVER según su valor.
 - `clear` está activo solo en REPOSO: el marcador se conserva en GAME_OVER para que `pixel_gen` pueda mostrar al ganador con `win_p1`/`win_p2`, y se borra al volver a REPOSO.
+- **Dos pulsaciones tras GAME_OVER:** la primera `ir_start` lleva de GAME_OVER a REPOSO (se borra el marcador y se ve el menú) y la segunda lleva de REPOSO a JUGANDO. Una sola pulsación no basta porque la FSM cambia un estado por pulso. Con la tecla START mantenida no se dispara una segunda vez: `ir_decoder` solo emite `ir_start` con la trama completa, no con las repeticiones.
 - `clear` también devuelve las paletas (200) y la pelota (315, 235 con sus direcciones iniciales) a su posición inicial: en `paddle_move` y `ball_move` la condición es `if (reset || clear)` como primera rama, con prioridad sobre `frame_tick` y `game_enable`. Antes solo `reset` lo hacía y una partida nueva empezaba con las paletas donde habían quedado.
 - En GAME_OVER las paletas y la pelota se congelan.
 - No hay empate: con una sola pelota los goles son de uno u otro jugador.
@@ -315,7 +370,7 @@ La salida de la terminal debe mostrar, todos en PASS:
 - Ancho de `frame_tick` de 10 ns.
 - Periodo de `frame_tick` de 16 800 000 ns.
 
-En GTKWave, agregar las señales `clk`, `reset`, `tick`, `h_count`, `v_count`, `hsync`, `vsync` y `video_on`, y comprobar los tiempos de la tabla de arriba. Los archivos `.vvp` y `.vcd` se generan al simular y no se suben al repositorio.
+En GTKWave, agregar las señales `clk`, `reset`, `tick`, `h_count`, `v_count`, `hsync`, `vsync` y `video_on`, y comprobar los tiempos de la tabla de arriba. Los archivos `.vvp` y `.vcd` se generan al simular y no se suben al repositorio. **Limitación:** el testbench mide `hsync` y `frame_tick`, pero no `vsync`; el pulso de VSYNC (64 µs) solo se comprueba a ojo en GTKWave.
 
 ### 3. Simular `pixel_gen`
 
@@ -324,7 +379,9 @@ iverilog -o sim_pixel src/pixel_gen.v tb/pixel_gen_tb.v
 vvp sim_pixel
 ```
 
-El testbench comprueba el color de píxeles dentro y justo fuera de cada cara de las paletas, la pelota, la línea central (tramos encendido y apagado, arriba y en el espejo inferior) y el borde (esquina exterior y píxel interior), una paleta desplazada al tope superior (`p1_y` = 10) y otra al tope inferior (`p2_y` = 390, donde el píxel justo debajo ya es borde y no fondo), la pelota en las cuatro esquinas permitidas, las prioridades de dibujo (la pelota tapa a la línea central y la paleta 1 tapa a la pelota) y que `video_on = 0` fuerza negro. Para el marcador comprueba la placa y sus bordes (un píxel dentro y uno fuera), las filas 0 y 9 como borde, todas las cajas apagadas en 0-0 con el hueco entre cajas como placa, un marcador asimétrico 3-7 (primera y última caja encendida y la siguiente apagada, para que un cruce de jugadores se note) y el marcador lleno 11-11 con la caja 10 de cada lado. La salida debe terminar en `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
+El testbench comprueba el color de píxeles dentro y justo fuera de cada cara de las paletas, la pelota, la línea central (tramos encendido y apagado, arriba y en el espejo inferior) y el borde (esquina exterior y píxel interior), una paleta desplazada al tope superior (`p1_y` = 10) y otra al tope inferior (`p2_y` = 390, donde el píxel justo debajo ya es borde y no fondo), la pelota en las cuatro esquinas permitidas, las prioridades de dibujo (la pelota tapa a la línea central y la paleta 1 tapa a la pelota) y que `video_on = 0` fuerza negro. Para el marcador comprueba la placa y sus bordes (un píxel dentro y uno fuera), las filas 0 y 9 como borde, todas las cajas apagadas en 0-0 con el hueco entre cajas como placa, un marcador asimétrico 3-7 (primera y última caja encendida y la siguiente apagada, para que un cruce de jugadores se note) y el marcador lleno 11-11 con la caja 10 de cada lado.
+
+Las pantallas se prueban con `state` = `2'b00` (REPOSO), `2'b10` (GAME_OVER) y `2'b11`; el resto de las pruebas corre con `state` = JUGANDO. En REPOSO comprueba las cuatro caras del marco (un píxel dentro y uno fuera de cada una), las esquinas, las cuatro caras del ícono y que el panel tapa a la pelota pero deja visibles la línea central, las dos paletas y el marcador. En GAME_OVER comprueba el marco, el fondo de cada jugador, las barras del "1" y del "2" (con un píxel dentro y uno fuera de cada borde, incluidos los huecos del "2"), el respaldo sin ganador (`667`), el estado `2'b11` (se dibuja como REPOSO) y que `video_on = 0` sigue forzando negro sobre el panel. Los valores esperados están escritos a mano, calculados de las medidas del panel, y no con las fórmulas del módulo, para que un error de la fórmula no se copie al valor esperado. Los nombres de caso usan un argumento de 512 bits para que no se trunquen al imprimir. La salida debe terminar en `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
 
 ### 4. Simular `paddle_move`
 
@@ -360,7 +417,7 @@ iverilog -g2012 -o sim_score src/score.v tb/score_tb.v
 vvp sim_score
 ```
 
-El testbench instancia dos veces el módulo: una con `MAX_SCORE` = 3 (para llegar rápido al límite) y otra con el valor por defecto (11). Prueba un punto por jugador, goles simultáneos en el mismo ciclo, un pulso de dos ciclos (cuenta 2: el contrato es un punto por ciclo), la saturación (un gol después de ganar no cambia el marcador, también con el gol del otro jugador), `reset` y `clear` con un gol al mismo tiempo (deben ganar), el empate en `MAX_SCORE` y que `win_pX` se active exactamente al llegar al máximo. Termina en `0 errores`.
+El testbench instancia dos veces el módulo: una con `MAX_SCORE` = 3 (para llegar rápido al límite) y otra con el valor por defecto (11). Prueba un punto por jugador, goles simultáneos en el mismo ciclo, un pulso de dos ciclos (cuenta 2: el contrato es un punto por ciclo), la saturación (un gol después de ganar no cambia el marcador, también con el gol del otro jugador), `reset` y `clear` con un gol al mismo tiempo (deben ganar), el empate en `MAX_SCORE` y que `win_pX` se active exactamente al llegar al máximo. Termina con `EXITO: TODOS LOS TESTS PASARON (0 ERRORES).`
 
 ### 8. Simular `calibration`
 
@@ -378,21 +435,62 @@ iverilog -g2012 -Wall -o sim_top src/vga_sync.v src/paddle_move.v src/pixel_gen.
 vvp sim_top
 ```
 
-Hay que listar **todos** los archivos fuente: el top instancia a los demás módulos y, si falta alguno, Icarus responde `Unknown module type`. El testbench comprueba que al soltar el reset las dos paletas valen 200, que mantener `up_p1` mueve solo la paleta 1 cuatro píxeles por cuadro, que `down_p2` mueve solo la paleta 2, que la pelota arranca en (315, 235) y avanza (313, 233), (311, 231), (309, 229) cuadro a cuadro, que `rgb` vale `E73` en la esquina de la pelota (integración `ball_x`, `ball_y` con `pixel_gen`) y que `rgb` vale `000` siempre que `video_on = 0`. También prueba la integración de la colisión: asigna la pelota en `ball_x` = 31 hacia la izquierda con la paleta 1 en 200, espera que en el siguiente cuadro llegue a 29 y en el otro rebote a 30 con `dir_x` = 0 (si `hitbox` no estuviera conectado en el top, este caso fallaría). Esos chequeos de `rgb` no tienen carrera con el movimiento de la pelota porque esta solo cambia en el blanking, donde `video_on = 0`. Además prueba la integración de los goles: con la pelota en `ball_x` = 12 hacia la izquierda y la paleta 1 alejada, espera `goal_p2` en 1, la pelota en (315, 235) y el pulso apagado un ciclo después; lo mismo en la pared derecha con `goal_p1`. Comprueba además el marcador en el sistema: tras el gol de la pared izquierda el marcador pasa a 0-1 y tras el de la derecha a 1-1, con el color de la primera caja de cada jugador en pantalla. Instancia `top_pong #(.CALIB_FRAMES(0))`: con los 180 cuadros de calibración la simulación tardaría 3 s de tiempo simulado (unos 10 minutos reales, por los 30 s que ya toman los 118 ms) y los chequeos del juego fallarían porque la salida sería blanca. Simula unos 118 ms (siete cuadros) y tiene un temporizador de seguridad de 300 ms: cada cuadro agregado suma 16.8 ms, así que agregar más cuadros exige revisar ese límite (con 100 ms el temporizador saltaba antes de que terminara la simulación). Para fijar el estado de la prueba de colisión usa asignaciones jerárquicas normales (`dut.movimiento_pelota.ball_x = 31`), no `force`, porque `force` bloquea las asignaciones del propio módulo y la pelota no se movería. Las lecturas se hacen 1 ns después del flanco de reloj, porque `y` se actualiza con asignación no bloqueante en ese flanco.
+Hay que listar **todos** los archivos fuente: el top instancia a los demás módulos y, si falta alguno, Icarus responde `Unknown module type`. El testbench (módulo `top_pong_tb`) instancia `top_pong #(.CALIB_FRAMES(0))`: con los 180 cuadros de calibración la simulación tardaría 3 s de tiempo simulado y los chequeos del juego fallarían porque la salida sería blanca. Tiene un temporizador de seguridad de 1000 ms de tiempo simulado: cada cuadro agregado suma 16.8 ms y cada trama NEC unos 70 ms, así que si se agregan pruebas hay que revisar ese límite. La simulación completa tarda varios minutos reales.
 
-Desde que el top incluye la FSM, la partida arranca congelada en REPOSO: el testbench envía una trama NEC con `CMD_START` (`8'h57`) y espera a `game_enable` con un límite de 50 ciclos (tarda 4). Después prueba el movimiento con botones, la hitbox, los goles, el marcador, el control IR de punta a punta (trama válida y trama corrupta), `START` ignorado en JUGANDO, la victoria de cada jugador (`score` = 10 y un gol, forzado por jerarquía), el congelamiento en GAME_OVER y el regreso a REPOSO con el marcador en 0-0, las paletas en 200 y la pelota en (315, 235) (se desplazan antes de volver a REPOSO para comprobar que `clear` las reinicia). En esos tres últimos casos `ir_start` se fuerza con `force`/`release` para ahorrar tiempo; el camino completo `ir_rx` → `ir_decoder` lo cubren la Prueba 1C del top y `tb_ir_decoder`, que comprueba la duración del pulso. La simulación avanza unos 706 ms (el temporizador de seguridad es de 1000 ms) y tarda unos 5 minutos reales.
+La partida arranca congelada en REPOSO (`game_fsm`), así que el testbench envía primero una trama NEC con `CMD_START` (`8'h57`) y espera a `game_enable` con un límite de 50 ciclos (tarda 4). Lo que comprueba, en orden:
+
+- **Reset:** al soltarlo, las dos paletas valen 200, la pelota está en (315, 235), el marcador en 0-0 y la FSM en REPOSO con `clear` en 1.
+- **Pantalla de REPOSO en el sistema:** `rgb` vale `28C` en (245, 240) (fondo del panel) y `FFF` en (315, 235) (ícono, que tapa a la pelota).
+- **Bloqueo en REPOSO:** una trama `P1_UP` llega a `comando_actual` y a `ir_p1_up`, pero `p1_y` y la pelota no se mueven.
+- **Arranque por IR:** la trama START lleva la FSM a JUGANDO con `game_enable` = 1 y `clear` = 0.
+- **Botones:** `up_p1` mueve solo la paleta 1 cuatro píxeles por cuadro (196, 192) y `down_p2` mueve solo la paleta 2 (204); la pelota avanza (313, 233), (311, 231), (309, 229) cuadro a cuadro.
+- **Colisión:** asigna la pelota en `ball_x` = 31 hacia la izquierda con la paleta 1 en 200, espera que en el siguiente cuadro llegue a 29 y en el otro rebote a 30 con `dir_x` = 0 (si `hitbox` no estuviera conectado en el top, este caso fallaría).
+- **Goles y marcador:** con la pelota en `ball_x` = 12 hacia la izquierda y la paleta 1 alejada, espera `goal_p2` en 1, la pelota en (315, 235) y el pulso apagado un ciclo después; el marcador pasa a 0-1 y luego, con el gol de la pared derecha, a 1-1, con el color de la primera caja de cada jugador en pantalla.
+- **Control IR de punta a punta:** una trama válida mueve `p1_y` a 296 sin tocar `p2_y`; una trama corrupta no mueve nada.
+- **FSM:** START en JUGANDO se ignora (el marcador sigue en 1-1 y la pelota sigue moviéndose); la victoria de P1 (`score_p1` = 10 y un gol) lleva a GAME_OVER con `game_enable` = 0; las paletas y la pelota se congelan; START devuelve a REPOSO con el marcador en 0-0, las paletas en 200 y la pelota en (315, 235) (se desplazan antes para comprobar que `clear` las reinicia). Lo mismo con la victoria de P2.
+- **Pantalla de GAME_OVER en el sistema:** con la victoria de P1, `rgb` vale `FF3` en (250, 200) (fondo amarillo) y `102` en (320, 240) (dígito "1"); con la de P2, `F35` y `102` (dígito "2").
+- **Blanking:** `rgb` vale `000` siempre que `video_on = 0`.
+- **Pelota en pantalla:** `rgb` vale `E73` en la esquina de la pelota (integración de `ball_x`, `ball_y` con `pixel_gen`), pero **solo cuando `state` = JUGANDO**: en REPOSO y en GAME_OVER el panel tapa la pelota, así que ese chequeo continuo está condicionado a `state == 2'b01`. No hay carrera con el movimiento de la pelota porque esta solo cambia en el blanking, donde `video_on = 0`.
+
+Para fijar el estado de las pruebas de colisión, de goles y de victoria usa asignaciones jerárquicas normales (`dut.movimiento_pelota.ball_x = 31`, `dut.marcador.score_p1 = 4'd10`), no `force`, porque `force` bloquea las asignaciones del propio módulo y la pelota no se movería. En los casos de START dentro de la FSM (JUGANDO, GAME_OVER y el regreso a REPOSO) `ir_start` se fuerza con `force`/`release` para ahorrar tiempo; el camino completo `ir_rx` → `ir_decoder` lo cubren la Prueba 1C del top y `tb_ir_decoder`, que comprueba la duración del pulso. Las lecturas se hacen 1 ns después del flanco de reloj, porque `y` se actualiza con asignación no bloqueante en ese flanco.
 
 ### 10. Simular `ir_sync_detector`
 
 ```bash
 iverilog -o sim_ir src/ir_sync_detector.v tb/tb_ir_sync_detector.v
 vvp sim_ir
-gtkwave ondas_detector.vcd
 ```
 
-El testbench baja `ir_rx` (como si se pulsara un botón del control) y lo vuelve a subir. En las formas de onda se ve que `ir_sync` es `ir_rx` retrasada dos ciclos de reloj, y que `flanco_bajada` y `flanco_subida` son pulsos de un ciclo. Por ahora el testbench no comprueba nada automáticamente.
+El testbench tiene 5 casos con PASS/FAIL y contador de errores: (1) reset y reposo sin falsos flancos; (2) flanco de bajada, ciclo por ciclo (el primer registro captura el 0, el segundo lo copia y `flanco_bajada` vale 1 durante un solo ciclo); (3) lo mismo con el flanco de subida; (4) un glitch más corto que un ciclo de reloj, que debe filtrarse; (5) reset asíncrono con la línea en bajo, que no debe producir un falso `flanco_subida`. No genera archivo `.vcd`. Termina con `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
 
-### 11. Simular `game_fsm`
+### 11. Simular `ir_contador_tiempo`
+
+```bash
+iverilog -o sim_cnt src/ir_contador_tiempo.v tb/tb_ir_contador_tiempo.v
+vvp sim_cnt
+```
+
+El testbench tiene 6 casos: reset síncrono inicial; conteo libre durante 5 ciclos; reinicio a 0 por `flanco_bajada` y reanudación; reinicio por `flanco_subida`; flancos simultáneos; y desbordamiento de 20 bits (de `20'hFFFFF` a 0), para el que fuerza el valor con una asignación jerárquica a `uut.cuenta_actual`. Termina con `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
+
+### 12. Simular `ir_shift_register`
+
+```bash
+iverilog -o sim_shift src/ir_shift_register.v tb/tb_ir_shift_register.v
+vvp sim_shift
+```
+
+El testbench tiene 6 casos: reset síncrono inicial; retención en 0 con `shift_en` = 0 aunque `shift_in` valga 1; primer bit que entra por el MSB (`trama_out[31]`, desplazamiento a la derecha porque NEC envía el LSB primero); reset a mitad de la recepción; recepción completa de la trama `32'hA857FF00` (LSB primero); y que la trama ya reconstruida no cambia mientras `shift_en` vale 0. Termina con `EXITO: TODOS LOS TESTS PASARON (0 ERRORES)`.
+
+### 13. Simular `ir_fsm`
+
+```bash
+iverilog -g2012 -o sim_irfsm src/ir_fsm.v tb/tb_ir_fsm.v
+vvp sim_irfsm
+```
+
+El testbench alimenta la FSM directamente con `flanco_bajada`, `flanco_subida` y `cuenta_actual` (sin el cronómetro real) y tiene 5 pruebas: ruido (pulso corto rechazado), trama NEC completa (exactamente 1 pulso de `data_ready`), repetición válida (exactamente 1 pulso de `repeat_ready`), espacio demasiado corto en `LEADER_HIGH` (vuelve a `IDLE`) y espacio demasiado largo (timeout a `IDLE`). Genera `ondas_fsm.vcd`. Termina con `EXITO: TODOS LOS TESTS DE FSM PASARON (0 ERRORES).`
+
+### 14. Simular `game_fsm`
 
 ```bash
 iverilog -g2012 -Wall -o sim_fsm src/game_fsm.v tb/game_fsm_tb.v
@@ -401,17 +499,17 @@ vvp sim_fsm
 
 El testbench tiene 9 pruebas: reset inicial en REPOSO; inmunidad a `win_p1`/`win_p2` en REPOSO; `ir_start` (un ciclo) lleva a JUGANDO; inmunidad a `ir_start` durante JUGANDO; victoria de P1 hacia GAME_OVER y regreso a REPOSO; nueva partida con victoria de P2 y retención en GAME_OVER; condiciones simultáneas en JUGANDO (7A: `ir_start` y `win_p1` en el mismo ciclo gana la victoria; 7B: `win_p1` y `win_p2` a la vez va a GAME_OVER); recuperación desde el estado inválido `2'b11`; y reset síncrono en mitad de la partida. Termina con `EXITO: TODOS LOS TESTS PASARON`.
 
-### 12. Simular `ir_decoder`
+### 15. Simular `ir_decoder`
 
 ```bash
 iverilog -g2012 -Wall -o sim_dec src/ir_sync_detector.v src/ir_contador_tiempo.v src/ir_fsm.v src/ir_shift_register.v src/ir_decoder.v tb/tb_ir_decoder.v
 vvp sim_dec
 ```
 
-El testbench envía tramas NEC y tiene 12 casos: los casos 1 a 4 comprueban el mapeo de `P1_UP`, `P1_DOWN`, `P2_UP` y `P2_DOWN`; el 5 envía una trama corrupta (`cmd` y `~cmd` no coinciden) que debe rechazarse sin alterar las salidas; el 6 envía `CMD_START` y comprueba que `ir_start` produce un solo pulso; el 7, una trama START corrupta (0 pulsos); el 8, una trama seguida de repeticiones a 108 ms que sostienen la dirección más allá de 216 ms; el 9, una repetición tardía (fuera de los 120 ms) que se ignora; el 10, una repetición sin comando previo tras un reset; el 11, espacios demasiado corto (1.0 ms) y demasiado largo (10 ms); y el 12, START mantenido con repeticiones (un solo `ir_start`). `tb/tb_ir_fsm.v` comprueba, con `ir_fsm` solo, el ruido, una trama completa (1 pulso de `data_ready`), una repetición válida (1 pulso de `repeat_ready`), un espacio corto y el timeout. El rechazo de una trama corrupta también se prueba de punta a punta en `top_tb`.
+El testbench envía tramas NEC y tiene 12 casos: los casos 1 a 4 comprueban el mapeo de `P1_UP`, `P1_DOWN`, `P2_UP` y `P2_DOWN`; el 5 envía una trama corrupta (`cmd` y `~cmd` no coinciden) que debe rechazarse sin alterar las salidas; el 6 envía `CMD_START` y comprueba que `ir_start` produce un solo pulso; el 7, una trama START corrupta (0 pulsos); el 8, una trama seguida de repeticiones a 108 ms que sostienen la dirección más allá de 216 ms; el 9, una repetición tardía (fuera de los 120 ms) que se ignora; el 10, una repetición sin comando previo tras un reset; el 11, espacios demasiado corto (1.0 ms) y demasiado largo (10 ms); y el 12, START mantenido con repeticiones (un solo `ir_start`). `tb/tb_ir_fsm.v` (sección anterior) comprueba, con `ir_fsm` solo, el ruido, una trama completa, una repetición válida, un espacio corto y el timeout. El rechazo de una trama corrupta también se prueba de punta a punta en `top_tb`.
 
 
-### 13. Sintetizar y programar la Basys3
+### 16. Sintetizar y programar la Basys3
 
 1. Crear un proyecto en Vivado para la parte `xc7a35tcpg236-1`.
 2. Agregar todos los archivos de `src/` (incluidos `hitbox.v`, los módulos IR, `ir_decoder.v` y `game_fsm.v`) como fuentes y `constraints/Basys3.xdc` como restricciones.
@@ -439,17 +537,20 @@ En el archivo de Digilent los pines VGA aparecen agrupados rojo, azul, verde, y 
 ### Limitaciones conocidas
 
 - Los botones entran directamente a los registros, sin sincronizar con el reloj ni filtrar rebotes. Para mantenerlos pulsados no afecta, pero queda pendiente agregar una cadena de dos registros (el mismo esquema de `ir_sync_detector` sirve). Lo mismo vale para la entrada `ir_rx`: pasa por `ir_sync_detector`, que sí la sincroniza.
-- La pelota rebota contra las paletas y las paredes superior e inferior, y las paredes laterales son la línea de gol (reinicio al centro y pulso `goal_p1`/`goal_p2`). La partida la controla `game_fsm`: arranca congelada en REPOSO y comienza con la tecla de inicio del control IR (`CMD_START`); al llegar un jugador a `MAX_SCORE` pasa a GAME_OVER y otra pulsación de inicio vuelve a REPOSO y borra el marcador. **Aún no existe una forma de iniciar la partida con los botones de la placa**: solo el control IR genera `ir_start`. La velocidad debe ser como máximo `PADDLE_W` para que no atraviese las paletas.
-- **Pendiente en pantalla:** `state`, `win_p1` y `win_p2` no llegan a `pixel_gen`, así que todavía no hay menú de REPOSO ni pantalla de GAME_OVER con el ganador; hoy la partida solo se ve congelada.
+- La pelota rebota contra las paletas y las paredes superior e inferior, y las paredes laterales son la línea de gol (reinicio al centro y pulso `goal_p1`/`goal_p2`). La partida la controla `game_fsm`: arranca congelada en REPOSO y comienza con la tecla de inicio del control IR (`CMD_START`); al llegar un jugador a `MAX_SCORE` pasa a GAME_OVER y otra pulsación de inicio vuelve a REPOSO y borra el marcador. La velocidad debe ser como máximo `PADDLE_W` para que no atraviese las paletas.
+- **Solo el control IR inicia la partida:** no existe una forma de iniciarla con los botones de la placa; solo el control IR genera `ir_start`.
+- **Dos pulsaciones tras GAME_OVER:** una pulsación de START lleva de GAME_OVER a REPOSO y otra de REPOSO a JUGANDO. Es por diseño (la FSM cambia un estado por pulso y REPOSO es el menú), pero el jugador debe saberlo.
+- **La pelota queda tapada en REPOSO y en GAME_OVER:** por diseño, el panel va por encima de la pelota, que en esos estados está en (315, 235) bajo el panel.
+- **El ícono de REPOSO es un rectángulo:** no hay un ícono reconocible ni texto; las opciones de nueva partida (por ejemplo la velocidad) quedan como mejora.
+- **`vsync` sin comprobar en `vga_sync_tb`:** el testbench mide `hsync` y `frame_tick`, pero no el ancho ni el período de `vsync`.
 - **Tramas de repetición NEC:** implementadas y verificadas en simulación (`tb_ir_decoder`, casos 8 a 12, y `tb_ir_fsm`) y, según Luis, en la tarjeta. El margen entre el período de repetición (108 ms) y `hold_counter` (120 ms) es de solo 12 ms: con otro control podría entrecortarse.
 - **Un solo comando a la vez:** con un único receptor IR no pueden moverse las dos paletas en el mismo instante por IR (sí con los botones). Mientras llega una trama no se interpreta otra.
 - **Códigos del control:** los códigos de `ir_decoder` son los leídos de un control Hyundai D&PHYUN-30. Si se usa otro control, hay que volver a leerlos con los LEDs y actualizarlos en el decodificador y en los testbenches.
-- **Testbenches de la base de Jose:** `tb_ir_sync_detector` y `tb_contador_tiempo` aún no comprueban resultados ni tienen casos límite, y `tb_ir_shift_register` comprueba una sola trama.
-- **Verificación en hardware:** según Luis, todo lo implementado hasta ahora funciona en la tarjeta y se probó en el monitor (imagen, paletas, pelota, colisiones, línea de gol, marcador, calibración, la FSM, el control IR con repeticiones y el reinicio de paletas y pelota con `clear`). Aún no existen las pantallas de REPOSO y GAME_OVER.
+- **Reset asíncrono en `ir_sync_detector`:** es el único módulo con reset asíncrono; el resto del diseño es síncrono. La liberación del reset asíncrono puede causar metaestabilidad, y el testbench de ese módulo comprueba solo su comportamiento lógico.
+- **Verificación en hardware:** según Luis, lo implementado hasta la FSM funciona en la tarjeta y se probó en el monitor (imagen, paletas, pelota, colisiones, línea de gol, marcador, calibración, la FSM, el control IR con repeticiones y el reinicio de paletas y pelota con `clear`). Las pantallas de REPOSO y GAME_OVER están verificadas en simulación (`pixel_gen_tb` y `top_tb`) y, según Luis, también se probaron en la tarjeta y el monitor.
 - **Alcance del receptor:** el VS1838B suelto detecta bien solo dentro de un cono estrecho. Conviene montarlo con la cúpula de frente a los jugadores, con 100 nF (y 4.7 a 10 µF) entre VCC y GND pegados a las patas, y probar lejos de luz solar directa.
 - La pantalla de calibración dura `CALIB_FRAMES` = 180 cuadros (unos 3 s) después de cada reset; mientras tanto el juego corre pero no se ve. Aún no se probó en el monitor que *Auto Adjust* la use bien; la alternativa sería activarla con un interruptor.
 - Los testbenches de cada módulo usan los valores por defecto de los `parameter` (ver "Constantes y parámetros del diseño").
-- Todo el diseño actual está probado en la tarjeta y en el monitor (según Luis): imagen, paletas, pelota, colisiones, línea de gol, marcador, calibración, la FSM y el control IR. Faltan por hacer las pantallas de REPOSO y GAME_OVER.
 
 ## Uso de IA
 
