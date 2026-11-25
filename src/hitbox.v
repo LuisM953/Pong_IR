@@ -18,6 +18,6 @@ localparam  P1_X          = MARGIN,
             P2_X          = (SCREEN_W - MARGIN - PADDLE_W);
 
 assign hit_p1 = (ball_x >= P1_X) && (ball_x <= P1_X + PADDLE_W - 1) && (ball_y < p1_y + PADDLE_H) && (ball_y + BALL_H > p1_y);
-assign hit_p2 = (ball_x <= P2_X) && (ball_x >= P2_X - BALL_W   + 1) && (ball_y < p2_y + PADDLE_H) && (ball_y + BALL_H > p2_y);
+assign hit_p2 = (ball_x <= P2_X) && (ball_x >= P2_X - PADDLE_W + 1) && (ball_y < p2_y + PADDLE_H) && (ball_y + BALL_H > p2_y);
 
 endmodule    
